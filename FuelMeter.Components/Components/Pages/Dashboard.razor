@@ -1,0 +1,206 @@
+@page "/dashboard"
+@using FuelMeter.Core.DTOs
+@using FuelMeter.Core.Services
+@using FuelMeter.Core.Services.Interfaces
+@layout MainLayout
+@inject IMeterReadingService MeterService
+@inject AuthStateService AuthState
+@inject NavigationManager Nav
+
+@if (!AuthState.IsAuthenticated)
+{
+    Nav.NavigateTo("/login");
+    return;
+}
+
+<div class="dashboard">
+
+    <div class="dash-header">
+        <div>
+            <h1 class="dash-title">Dashboard</h1>
+            <p class="dash-subtitle">Monthly overview based on the readings entered for each fuel type.</p>
+        </div>
+        <!-- Month selector -->
+        <select class="dash-month-select" @bind="_selectedMonth" @bind:after="LoadAsync">
+            @foreach (var m in _monthOptions)
+            {
+                <option value="@m.Value">@m.Label</option>
+            }
+        </select>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="dash-loading">Loading…</div>
+    }
+    else if (_data is null)
+    {
+        <div class="dash-empty">⚠️ Could not load data. Please check your connection.</div>
+    }
+    else
+    {
+        @if (!_data.HasReadings)
+        {
+            <div class="dash-no-readings">
+                📭 No readings for @(new DateTime(_data.Year, _data.Month, 1).ToString("MMMM yyyy")).
+                <a href="/add-reading">Add a reading →</a>
+            </div>
+        }
+
+        <!-- Summary Cards -->
+        <div class="stat-grid">
+            <div class="stat-card">
+                <span class="stat-label">Electricity Used</span>
+                <span class="stat-value blue">@_data.ElectricityUsage.ToString("N0") kWh</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Electricity Cost</span>
+                <span class="stat-value blue">@_data.CurrencySymbol@_data.ElectricityCost.ToString("N2")</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Gas Used</span>
+                <span class="stat-value green">@_data.GasUsage.ToString("N0") units</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Gas Cost</span>
+                <span class="stat-value green">@_data.CurrencySymbol@_data.GasCost.ToString("N2")</span>
+            </div>
+        </div>
+
+        <!-- Donut Charts -->
+        <div class="chart-row">
+            <div class="chart-card">
+                <span class="chart-title">Electricity Live Usage</span>
+                <div class="donut-wrap">
+                    <svg viewBox="0 0 120 120" class="donut">
+                        <circle cx="60" cy="60" r="48" fill="none" stroke="#E3EEFF" stroke-width="14"/>
+                        <circle cx="60" cy="60" r="48" fill="none" stroke="var(--fm-blue)" stroke-width="14"
+                                stroke-dasharray="@ElecArc 302" stroke-dashoffset="75"
+                                stroke-linecap="round"/>
+                    </svg>
+                    <div class="donut-label">
+                        <span class="donut-value blue">@_data.CurrencySymbol@((int)_data.ElectricityCost)</span>
+                        <span class="donut-sub">This Month</span>
+                    </div>
+                </div>
+            </div>
+            <div class="chart-card">
+                <span class="chart-title">Gas Live Usage</span>
+                <div class="donut-wrap">
+                    <svg viewBox="0 0 120 120" class="donut">
+                        <circle cx="60" cy="60" r="48" fill="none" stroke="#E3EEFF" stroke-width="14"/>
+                        <circle cx="60" cy="60" r="48" fill="none" stroke="#2E7D32" stroke-width="14"
+                                stroke-dasharray="@GasArc 302" stroke-dashoffset="75"
+                                stroke-linecap="round"/>
+                    </svg>
+                    <div class="donut-label">
+                        <span class="donut-value green">@_data.CurrencySymbol@((int)_data.GasCost)</span>
+                        <span class="donut-sub">This Month</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Detail Cards -->
+        <div class="detail-row">
+            <div class="detail-card">
+                <h3 class="detail-title">Electricity</h3>
+                @if (!string.IsNullOrEmpty(_data.ElectricityProvider))
+                {
+                    <p class="detail-line"><span>Provider:</span> @_data.ElectricityProvider</p>
+                }
+                <p class="detail-line"><span>Price per kWh:</span> @_data.CurrencySymbol@_data.ElectricityRate.ToString("0.00##")</p>
+                @if (_data.ElectricityStandingCharge > 0)
+                {
+                    <p class="detail-line"><span>Standing charge:</span> @_data.ElectricityStandingCharge.ToString("0.00##")p/day (@_data.CurrencySymbol@_data.ElectricityStandingCost.ToString("N2") this month)</p>
+                    <p class="detail-line"><span>Usage cost:</span> @_data.CurrencySymbol@_data.ElectricityUsageCost.ToString("N2")</p>
+                }
+                <div class="progress-bar-wrap">
+                    <div class="progress-bar blue" style="width:@ElecProgressPct%"></div>
+                </div>
+                <p class="detail-total">Total this month: <strong>@_data.CurrencySymbol@_data.ElectricityCost.ToString("N2")</strong></p>
+                @if (_data.ElectricityBudget > 0)
+                {
+                    <p class="detail-budget">Budget: @_data.CurrencySymbol@_data.ElectricityBudget.ToString("N2")</p>
+                }
+            </div>
+            <div class="detail-card">
+                <h3 class="detail-title">Gas</h3>
+                @if (!string.IsNullOrEmpty(_data.GasProvider))
+                {
+                    <p class="detail-line"><span>Provider:</span> @_data.GasProvider</p>
+                }
+                <p class="detail-line"><span>Price per unit:</span> @_data.CurrencySymbol@_data.GasRate.ToString("0.00##")</p>
+                @if (_data.GasStandingCharge > 0)
+                {
+                    <p class="detail-line"><span>Standing charge:</span> @_data.GasStandingCharge.ToString("0.00##")p/day (@_data.CurrencySymbol@_data.GasStandingCost.ToString("N2") this month)</p>
+                    <p class="detail-line"><span>Usage cost:</span> @_data.CurrencySymbol@_data.GasUsageCost.ToString("N2")</p>
+                }
+                <div class="progress-bar-wrap">
+                    <div class="progress-bar green" style="width:@GasProgressPct%"></div>
+                </div>
+                <p class="detail-total">Total this month: <strong>@_data.CurrencySymbol@_data.GasCost.ToString("N2")</strong></p>
+                @if (_data.GasBudget > 0)
+                {
+                    <p class="detail-budget">Budget: @_data.CurrencySymbol@_data.GasBudget.ToString("N2")</p>
+                }
+            </div>
+        </div>
+
+        <!-- Formula Hint -->
+        <div class="formula-hint">
+            💡 <em>Formula: usage = latest meter reading − first meter reading for the selected month. Cost = (usage × price per unit) + (standing charge p/day ÷ 100 × days in month).</em>
+        </div>
+    }
+
+</div>
+
+@code {
+    private DashboardDto? _data;
+    private bool _loading = true;
+    private string _selectedMonth = DateTime.Today.ToString("yyyy-MM");
+
+    private record MonthOption(string Value, string Label);
+    private List<MonthOption> _monthOptions = Enumerable
+        .Range(0, 12)
+        .Select(i => DateTime.Today.AddMonths(-i))
+        .Select(d => new MonthOption(d.ToString("yyyy-MM"), d.ToString("MMMM yyyy")))
+        .ToList();
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        if (!AuthState.IsAuthenticated) return;
+        _loading = true;
+
+        try
+        {
+            if (DateTime.TryParse(_selectedMonth + "-01", out var parsed))
+                _data = await MeterService.GetDashboardAsync(
+                    AuthState.CurrentUser!.Id, parsed.Year, parsed.Month);
+        }
+        catch { _data = null; }
+        finally { _loading = false; }
+    }
+
+    // Donut arc: 302 = full circumference (2πr ≈ 2×3.14×48)
+    private double ElecArc => _data is null ? 0 : CalcArc(_data.ElectricityCost, _data.ElectricityBudget);
+    private double GasArc  => _data is null ? 0 : CalcArc(_data.GasCost, _data.GasBudget);
+
+    private static double CalcArc(decimal cost, decimal budget)
+    {
+        if (budget <= 0) return cost > 0 ? 220 : 0;  // no budget — show ~73% as indicator
+        double pct = Math.Min(1.0, (double)(cost / budget));
+        return Math.Round(pct * 302, 1);
+    }
+
+    // Progress bar percentage
+    private double ElecProgressPct => _data is null ? 0 : CalcPct(_data.ElectricityCost, _data.ElectricityBudget);
+    private double GasProgressPct  => _data is null ? 0 : CalcPct(_data.GasCost, _data.GasBudget);
+
+    private static double CalcPct(decimal cost, decimal budget) =>
+        budget > 0
+            ? Math.Min(100, Math.Round((double)(cost / budget * 100), 1))
+            : (cost > 0 ? 65 : 0);
+}

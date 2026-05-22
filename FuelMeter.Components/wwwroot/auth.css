@@ -1,0 +1,296 @@
+/* FuelMeter - Shared Auth Styles (Login, Register, ForgotPassword) */
+
+/* ── Page ── */
+.auth-page {
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px;
+    background: var(--fm-bg);
+}
+
+/* ── Card ── */
+.auth-card {
+    background: var(--fm-card);
+    border-radius: 24px;
+    box-shadow: var(--fm-shadow-card);
+    border: 1px solid var(--fm-border);
+    padding: 44px 40px;
+    width: 100%;
+    max-width: 460px;
+}
+
+/* ── Logo ── */
+.auth-logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 28px;
+}
+
+.auth-logo img {
+    width: 52px;
+    height: 52px;
+    max-width: 52px;
+    max-height: 52px;
+    object-fit: contain;
+    flex-shrink: 0;
+    background-color: #ffffff;
+    border-radius: 10px;
+    padding: 3px;
+}
+
+.auth-logo-text {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    background: var(--fm-grad-logo);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* ── Headings ── */
+.auth-title {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--fm-text);
+    margin: 0 0 8px 0;
+}
+
+.auth-subtitle {
+    font-size: 14px;
+    color: var(--fm-muted);
+    margin: 0 0 24px 0;
+    line-height: 1.6;
+}
+
+/* ── Alerts ── */
+.auth-alert {
+    border-radius: 12px;
+    padding: 12px 16px;
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 20px;
+}
+
+.auth-alert-error {
+    background: var(--fm-error-bg);
+    color: var(--fm-error);
+    border-left: 4px solid var(--fm-error);
+}
+
+.auth-alert-success {
+    background: var(--fm-success-bg);
+    color: var(--fm-success);
+    border-left: 4px solid var(--fm-success);
+}
+
+/* ── Form ── */
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 18px;
+}
+
+.form-group label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--fm-text);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+}
+
+.form-control {
+    border: 1.5px solid var(--fm-border);
+    border-radius: 12px;
+    padding: 13px 16px;
+    font-size: 15px;
+    width: 100%;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    outline: none;
+    color: var(--fm-text);
+    background: var(--fm-input-bg);
+    box-sizing: border-box;
+}
+
+.form-control::placeholder {
+    color: #90A4AE;
+}
+
+.form-control:focus {
+    border-color: var(--fm-blue-bright);
+    box-shadow: 0 0 0 4px rgba(41, 121, 255, 0.12);
+    background: var(--fm-card);
+}
+
+/* ── Buttons ── */
+.button-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+}
+
+.btn {
+    border: none;
+    border-radius: 12px;
+    padding: 13px 24px;
+    font-size: 15px;
+    cursor: pointer;
+    font-weight: 700;
+    transition: transform 0.15s, box-shadow 0.15s, background 0.2s;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn:active {
+    transform: scale(0.97);
+}
+
+.btn:disabled {
+    opacity: 0.60;
+    cursor: not-allowed;
+}
+
+.btn-primary {
+    background: var(--fm-grad-primary);
+    color: #fff;
+    box-shadow: var(--fm-shadow-blue);
+}
+
+.btn-primary:hover:not(:disabled) {
+    background: linear-gradient(135deg, var(--fm-blue-900) 0%, var(--fm-blue-dark) 100%);
+}
+
+.btn-secondary {
+    background: #E8EAF6;
+    color: var(--fm-text);
+}
+
+.btn-secondary:hover:not(:disabled) {
+    background: #C5CAE9;
+}
+
+.btn-orange {
+    background: var(--fm-grad-orange);
+    color: #fff;
+    box-shadow: var(--fm-shadow-orange);
+}
+
+.btn-orange:hover:not(:disabled) {
+    background: linear-gradient(135deg, var(--fm-orange-dark) 0%, var(--fm-orange-mid) 100%);
+}
+
+.btn-link {
+    background: none;
+    border: none;
+    color: var(--fm-blue-bright);
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    padding: 0;
+    text-decoration: none;
+}
+
+.btn-link:hover {
+    color: var(--fm-blue-dark);
+    text-decoration: underline;
+}
+
+/* ── Password field with show/hide toggle ── */
+.password-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.password-wrapper .form-control {
+    padding-right: 48px;
+}
+
+.password-toggle {
+    position: absolute;
+    right: 14px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 17px;
+    line-height: 1;
+    padding: 0;
+    color: var(--fm-muted);
+    user-select: none;
+}
+
+/* ── Reset-password invalid-token state ── */
+.reset-invalid-state {
+    text-align: center;
+}
+
+/* ── Validation ── */
+.validation-message {
+    font-size: 12px;
+    color: var(--fm-error);
+    font-weight: 500;
+}
+
+/* ── Footer ── */
+.auth-footer {
+    text-align: center;
+    margin-top: 28px;
+    padding-top: 18px;
+    border-top: 1px solid var(--fm-border);
+    font-size: 14px;
+    color: var(--fm-muted);
+}
+
+.auth-footer a {
+    color: var(--fm-blue);
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.auth-footer a:hover {
+    color: var(--fm-orange);
+    text-decoration: underline;
+}
+
+/* ── Success State ── */
+.success-state {
+    text-align: center;
+}
+
+.success-icon {
+    font-size: 54px;
+    margin-bottom: 16px;
+    display: block;
+}
+
+.resend-note {
+    margin-top: -8px;
+}
+
+/* ── Mobile ── */
+@media (max-width: 480px) {
+    .auth-card {
+        padding: 30px 20px;
+        border-radius: 18px;
+    }
+
+    .auth-title {
+        font-size: 20px;
+    }
+
+    .button-row {
+        flex-direction: column;
+    }
+
+    .btn {
+        width: 100%;
+    }
+}

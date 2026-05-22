@@ -1,0 +1,81 @@
+.settings-page { display: flex; flex-direction: column; gap: 20px; }
+
+.settings-title    { font-size: 1.5rem; font-weight: 700; color: var(--fm-text); margin: 0; }
+.settings-subtitle { font-size: .88rem; color: var(--fm-muted); margin: 4px 0 0; }
+.settings-loading  { color: var(--fm-muted); padding: 24px 0; text-align: center; }
+
+.alert { padding: 13px 16px; border-radius: 10px; font-size: .9rem; font-weight: 500; }
+.alert-success { background: var(--fm-success-bg); color: var(--fm-success); }
+.alert-error   { background: var(--fm-error-bg);   color: var(--fm-error);   }
+
+/* Section Card */
+.settings-section {
+    background: var(--fm-card);
+    border: 1px solid var(--fm-border);
+    border-radius: 16px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.05);
+}
+
+.section-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--fm-border);
+}
+
+.section-icon  { font-size: 1.3rem; }
+.section-title { font-size: 1.05rem; font-weight: 700; color: var(--fm-text); margin: 0; }
+
+/* Form */
+.form-group { display: flex; flex-direction: column; gap: 6px; }
+
+.form-group label {
+    font-size: .78rem;
+    font-weight: 600;
+    color: var(--fm-text);
+    text-transform: uppercase;
+    letter-spacing: .5px;
+}
+
+.form-control {
+    border: 1.5px solid var(--fm-border);
+    border-radius: 10px;
+    padding: 11px 13px;
+    font-size: .95rem;
+    background: var(--fm-input-bg);
+    color: var(--fm-text);
+    outline: none;
+    transition: border-color .2s;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.form-control:focus { border-color: var(--fm-blue); }
+
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+.optional { font-size: .7rem; font-weight: 400; color: var(--fm-muted); text-transform: none; }
+
+/* Save Button */
+.settings-actions { padding-top: 4px; }
+
+.btn-save {
+    width: 100%;
+    padding: 14px;
+    background: var(--fm-grad-primary);
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity .2s;
+}
+
+.btn-save:disabled { opacity: .6; cursor: not-allowed; }
+.btn-save:hover:not(:disabled) { opacity: .88; }

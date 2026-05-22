@@ -1,0 +1,105 @@
+﻿@namespace FuelMeter.Components.Components.Layout
+@inherits LayoutComponentBase
+@using FuelMeter.Core.Services
+@inject AuthStateService AuthState
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<div class="app-shell @(_drawerOpen ? "drawer-open" : "")">
+
+    <!-- Overlay (tap to close) -->
+    <div class="drawer-overlay" @onclick="CloseDrawer"></div>
+
+    <!-- Left Slide-in Drawer -->
+    <nav class="drawer">
+        <div class="drawer-header">
+            <img src="images/fuelMeter_Logo.png" alt="FuelMeter" class="drawer-logo" />
+            <span class="drawer-brand">FuelMeter</span>
+            <button class="drawer-close" @onclick="CloseDrawer"><i data-lucide="x"></i></button>
+        </div>
+
+        @if (AuthState.IsAuthenticated)
+        {
+            <div class="drawer-user">
+                <span class="drawer-user-name">@AuthState.CurrentUser!.FullName</span>
+                <span class="drawer-user-email">@AuthState.CurrentUser!.Email</span>
+            </div>
+        }
+
+        <ul class="drawer-nav">
+            <li>
+                <NavLink href="/dashboard" class="drawer-link" ActiveClass="drawer-link-active" @onclick="CloseDrawer">
+                    <i data-lucide="layout-dashboard" class="drawer-icon"></i> Dashboard
+                </NavLink>
+            </li>
+            <li>
+                <NavLink href="/settings" class="drawer-link" ActiveClass="drawer-link-active" @onclick="CloseDrawer">
+                    <i data-lucide="settings" class="drawer-icon"></i> Settings
+                </NavLink>
+            </li>
+            <li>
+                <NavLink href="/add-reading" class="drawer-link" ActiveClass="drawer-link-active" @onclick="CloseDrawer">
+                    <i data-lucide="plus-circle" class="drawer-icon"></i> Add Meter Reading
+                </NavLink>
+            </li>
+            <li>
+                <NavLink href="/meter-readings" class="drawer-link" ActiveClass="drawer-link-active" @onclick="CloseDrawer">
+                    <i data-lucide="table" class="drawer-icon"></i> Meter Reading Grid
+                </NavLink>
+            </li>
+            <li>
+                <NavLink href="/usage-charts" class="drawer-link" ActiveClass="drawer-link-active" @onclick="CloseDrawer">
+                    <i data-lucide="trending-up" class="drawer-icon"></i> Usage Charts
+                </NavLink>
+            </li>
+            <li>
+                <NavLink href="/notification-settings" class="drawer-link" ActiveClass="drawer-link-active" @onclick="CloseDrawer">
+                    <i data-lucide="bell" class="drawer-icon"></i> Notifications
+                </NavLink>
+            </li>
+        </ul>
+
+        <div class="drawer-footer">
+            <button class="drawer-logout" @onclick="Logout">
+                <i data-lucide="log-out" class="drawer-icon"></i> Sign Out
+            </button>
+        </div>
+    </nav>
+
+    <!-- Top Bar -->
+    <div class="topbar">
+        <button class="hamburger" @onclick="ToggleDrawer" aria-label="Open menu">
+            <span></span><span></span><span></span>
+        </button>
+        <span class="topbar-title">FuelMeter</span>
+    </div>
+
+    <!-- Page Content -->
+    <main class="main-content">
+        @Body
+    </main>
+
+</div>
+
+@code {
+    private bool _drawerOpen;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("lucide.createIcons");
+        }
+        catch { /* lucide not yet loaded — silently ignore */ }
+    }
+
+    private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+    private void CloseDrawer()  => _drawerOpen = false;
+
+    private void Logout()
+    {
+        AuthState.ClearUser();
+        CloseDrawer();
+        Nav.NavigateTo("/login");
+    }
+}

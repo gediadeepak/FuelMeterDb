@@ -1,0 +1,171 @@
+@page "/settings"
+@using FuelMeter.Core.DTOs
+@using FuelMeter.Core.Services
+@using FuelMeter.Core.Services.Interfaces
+@layout MainLayout
+@inject ISettingsService SettingsService
+@inject AuthStateService AuthState
+@inject NavigationManager Nav
+
+@if (!AuthState.IsAuthenticated)
+{
+    Nav.NavigateTo("/login");
+    return;
+}
+
+<div class="settings-page">
+
+    <div class="settings-header">
+        <h1 class="settings-title">Settings</h1>
+        <p class="settings-subtitle">Configure your electricity and gas provider details.</p>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_successMessage))
+    {
+        <div class="alert alert-success">✅ @_successMessage</div>
+    }
+    @if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <div class="alert alert-error">⚠️ @_errorMessage</div>
+    }
+
+    @if (_loading)
+    {
+        <div class="settings-loading">Loading your settings…</div>
+    }
+    else
+    {
+        <EditForm Model="_model" OnValidSubmit="SaveAsync" FormName="SettingsForm">
+            <DataAnnotationsValidator />
+
+            <!-- Electricity Section -->
+            <div class="settings-section">
+                <div class="section-head">
+                    <span class="section-icon">⚡</span>
+                    <h2 class="section-title">Electricity</h2>
+                </div>
+
+                <div class="form-group">
+                    <label>Provider Name</label>
+                    <InputText class="form-control" @bind-Value="_model.ElectricityProvider"
+                               placeholder="e.g. British Gas" />
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Price per kWh (@_model.CurrencySymbol)</label>
+                        <InputNumber class="form-control" @bind-Value="_model.ElectricityPricePerKwh"
+                                     placeholder="0.30" />
+                    </div>
+                    <div class="form-group">
+                        <label>Standing Charge (p/day)</label>
+                        <InputNumber class="form-control" @bind-Value="_model.ElectricityStandingCharge"
+                                     placeholder="0.00" />
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Monthly Budget (@_model.CurrencySymbol) <span class="optional">optional</span></label>
+                        <InputNumber class="form-control" @bind-Value="_model.ElectricityMonthlyBudget"
+                                     placeholder="50.00" />
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gas Section -->
+            <div class="settings-section">
+                <div class="section-head">
+                    <span class="section-icon">🔥</span>
+                    <h2 class="section-title">Gas</h2>
+                </div>
+
+                <div class="form-group">
+                    <label>Provider Name</label>
+                    <InputText class="form-control" @bind-Value="_model.GasProvider"
+                               placeholder="e.g. British Gas" />
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Price per Unit (@_model.CurrencySymbol)</label>
+                        <InputNumber class="form-control" @bind-Value="_model.GasPricePerUnit"
+                                     placeholder="0.30" />
+                    </div>
+                    <div class="form-group">
+                        <label>Standing Charge (p/day)</label>
+                        <InputNumber class="form-control" @bind-Value="_model.GasStandingCharge"
+                                     placeholder="0.00" />
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Monthly Budget (@_model.CurrencySymbol) <span class="optional">optional</span></label>
+                        <InputNumber class="form-control" @bind-Value="_model.GasMonthlyBudget"
+                                     placeholder="30.00" />
+                    </div>
+                </div>
+            </div>
+
+            <!-- Currency Section -->
+            <div class="settings-section">
+                <div class="section-head">
+                    <span class="section-icon">💰</span>
+                    <h2 class="section-title">Currency</h2>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Currency Code</label>
+                        <InputText class="form-control" @bind-Value="_model.Currency" placeholder="GBP" />
+                    </div>
+                    <div class="form-group">
+                        <label>Currency Symbol</label>
+                        <InputText class="form-control" @bind-Value="_model.CurrencySymbol" placeholder="£" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-actions">
+                <button type="submit" class="btn-save" disabled="@_saving">
+                    @(_saving ? "Saving…" : "💾 Save Settings")
+                </button>
+            </div>
+
+        </EditForm>
+    }
+
+</div>
+
+@code {
+    private UserSettingsDto _model = new();
+    private bool _loading = true;
+    private bool _saving;
+    private string _successMessage = string.Empty;
+    private string _errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthState.IsAuthenticated) return;
+
+        var existing = await SettingsService.GetSettingsAsync(AuthState.CurrentUser!.Id);
+        if (existing is not null)
+            _model = existing;
+
+        _loading = false;
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        _successMessage = string.Empty;
+        _errorMessage   = string.Empty;
+
+        var result = await SettingsService.SaveSettingsAsync(AuthState.CurrentUser!.Id, _model);
+
+        if (result.Success)
+            _successMessage = result.Message;
+        else
+            _errorMessage = result.Message;
+
+        _saving = false;
+    }
+}

@@ -1,0 +1,21 @@
+@namespace FuelMeter.Web.Components
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FuelMeter</title>
+    <base href="/" />
+    <link rel="stylesheet" href="lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="app.css" />
+    <link rel="stylesheet" href="auth.css" />
+    <link rel="stylesheet" href="FuelMeter.Web.styles.css" />
+    <link rel="stylesheet" href="_content/FuelMeter.Components/FuelMeter.Components.styles.css" />
+    <link rel="icon" href="data:,">
+    <script src="lib/lucide.min.js"></script>
+</head>
+<body>
+    <FuelMeter.Components.Components.Routes @rendermode="RenderMode.InteractiveServer" />
+    <script src="_framework/blazor.web.js"></script>
+</body>
+</html>

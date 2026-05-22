@@ -1,0 +1,188 @@
+@page "/meter-readings"
+@using FuelMeter.Core.DTOs
+@using FuelMeter.Core.Services
+@using FuelMeter.Core.Services.Interfaces
+@layout MainLayout
+@inject IMeterReadingService MeterService
+@inject AuthStateService AuthState
+@inject NavigationManager Nav
+
+@if (!AuthState.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+
+<div class="mrg-page">
+
+    <div class="mrg-header">
+        <h1 class="mrg-title">Meter Reading Grid</h1>
+        <p class="mrg-subtitle">View daily readings and calculated usage by fuel type.</p>
+    </div>
+
+    <!-- Filters -->
+    <div class="mrg-card">
+        <div class="mrg-filters">
+            <div class="form-group">
+                <label class="mrg-label">Filter by fuel</label>
+                <select class="mrg-select" @bind="_filterFuel" @bind:after="LoadAsync">
+                    <option value="All">All</option>
+                    <option value="Electricity">Electricity</option>
+                    <option value="Gas">Gas</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="mrg-label">Filter month</label>
+                <select class="mrg-select" @bind="_filterMonth" @bind:after="LoadAsync">
+                    @foreach (var m in _monthOptions)
+                    {
+                        <option value="@m.Value">@m.Label</option>
+                    }
+                </select>
+            </div>
+        </div>
+
+        <!-- Add button -->
+        <div class="mrg-toolbar">
+            <button class="mrg-btn-add" @onclick='() => Nav.NavigateTo("/add-reading")'>
+                ➕ Add Reading
+            </button>
+        </div>
+
+        <!-- Alert -->
+        @if (!string.IsNullOrEmpty(_errorMsg))
+        {
+            <div class="mrg-alert mrg-error">⚠️ @_errorMsg</div>
+        }
+
+        <!-- Grid -->
+        @if (_loading)
+        {
+            <div class="mrg-loading">Loading readings…</div>
+        }
+        else if (_rows.Count == 0)
+        {
+            <div class="mrg-empty">
+                <span>📭</span>
+                <p>No readings found. Add your first meter reading.</p>
+            </div>
+        }
+        else
+        {
+            <div class="mrg-table-wrap">
+                <table class="mrg-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Fuel</th>
+                            <th>Previous Reading</th>
+                            <th>Current Reading</th>
+                            <th>Usage</th>
+                            <th>Rate</th>
+                            <th>Estimated Cost</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in _rows)
+                        {
+                            <tr>
+                                <td>@row.ReadingDate.ToString("dd MMM yyyy")</td>
+                                <td>
+                                    <span class="fuel-badge @(row.FuelType == "Electricity" ? "badge-elec" : "badge-gas")">
+                                        @row.FuelType
+                                    </span>
+                                </td>
+                                <td>@row.PreviousReading.ToString("N0")</td>
+                                <td>@row.CurrentReading.ToString("N0")</td>
+                                <td>@row.Usage.ToString("N0") @(row.FuelType == "Electricity" ? "kWh" : "units")</td>
+                                <td>£@row.Rate.ToString("0.00")</td>
+                                <td>£@row.EstimatedCost.ToString("0.00")</td>
+                                <td class="mrg-actions-cell">
+                                    <button class="mrg-btn-edit"
+                                            @onclick="() => EditRow(row.Id)">
+                                        ✏️
+                                    </button>
+                                    <button class="mrg-btn-delete" @onclick="() => ConfirmDelete(row)">
+                                        🗑️
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+
+    <!-- Delete Confirm Modal -->
+    @if (_deleteTarget is not null)
+    {
+        <div class="modal-backdrop" @onclick="CancelDelete">
+            <div class="modal-box" @onclick:stopPropagation>
+                <h3>Delete Reading?</h3>
+                <p>@_deleteTarget.ReadingDate.ToString("dd MMM yyyy") — @_deleteTarget.FuelType (@_deleteTarget.CurrentReading)</p>
+                <div class="modal-actions">
+                    <button class="mrg-btn-confirm-delete" @onclick="DoDeleteAsync">🗑️ Delete</button>
+                    <button class="mrg-btn-cancel" @onclick="CancelDelete">Cancel</button>
+                </div>
+            </div>
+        </div>
+    }
+
+</div>
+
+@code {
+    private List<MeterReadingRowDto> _rows = [];
+    private bool _loading = true;
+    private string _filterFuel  = "All";
+    private string _filterMonth = DateTime.Today.ToString("yyyy-MM");
+    private string _errorMsg    = string.Empty;
+    private MeterReadingRowDto? _deleteTarget;
+
+    private record MonthOption(string Value, string Label);
+
+    private List<MonthOption> _monthOptions = Enumerable
+        .Range(0, 12)
+        .Select(i => DateTime.Today.AddMonths(-i))
+        .Select(d => new MonthOption(d.ToString("yyyy-MM"), d.ToString("MMMM yyyy")))
+        .ToList();
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading  = true;
+        _errorMsg = string.Empty;
+
+        try
+        {
+            int? year = null, month = null;
+            if (DateTime.TryParse(_filterMonth + "-01", out var parsed))
+            {
+                year  = parsed.Year;
+                month = parsed.Month;
+            }
+
+            _rows = await MeterService.GetGridAsync(
+                AuthState.CurrentUser!.Id, _filterFuel, year, month);
+        }
+        catch
+        {
+            _errorMsg = "Failed to load readings. Please check your connection.";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void EditRow(int id) => Nav.NavigateTo("/add-reading/" + id);
+
+    private void ConfirmDelete(MeterReadingRowDto row) => _deleteTarget = row;
+    private void CancelDelete() => _deleteTarget = null;
+
+    private async Task DoDeleteAsync()
+    {
+        if (_deleteTarget is null) return;
+        await MeterService.DeleteAsync(AuthState.CurrentUser!.Id, _deleteTarget.Id);
+        _deleteTarget = null;
+        await LoadAsync();
+    }
+}

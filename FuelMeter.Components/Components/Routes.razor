@@ -1,0 +1,28 @@
+﻿@namespace FuelMeter.Components.Components
+<ErrorBoundary>
+    <ChildContent>
+        <Router AppAssembly="typeof(Routes).Assembly">
+            <Found Context="routeData">
+                <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
+                <FocusOnNavigate RouteData="routeData" Selector="h1" />
+            </Found>
+            <NotFound>
+                <LayoutView Layout="typeof(Layout.MainLayout)">
+                    <p>Sorry, there's nothing at this address.</p>
+                </LayoutView>
+            </NotFound>
+        </Router>
+    </ChildContent>
+    <ErrorContent Context="ex">
+        <div style="padding:20px;font-family:monospace;background:#fff3f3;color:#c00;border:1px solid #c00;margin:10px;border-radius:6px;">
+            <h3>&#9888; Startup error</h3>
+            <p><strong>@ex.GetType().FullName</strong></p>
+            <pre style="white-space:pre-wrap;word-break:break-all;">@ex.Message</pre>
+            @if (ex.InnerException is not null)
+            {
+                <pre style="white-space:pre-wrap;word-break:break-all;color:#a00;">Inner: @ex.InnerException.Message</pre>
+            }
+            <pre style="white-space:pre-wrap;word-break:break-all;font-size:11px;color:#666;">@ex.StackTrace</pre>
+        </div>
+    </ErrorContent>
+</ErrorBoundary>

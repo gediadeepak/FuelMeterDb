@@ -1,0 +1,133 @@
+@page "/add-reading"
+@page "/add-reading/{EditId:int}"
+@using FuelMeter.Core.DTOs
+@using FuelMeter.Core.Services
+@using FuelMeter.Core.Services.Interfaces
+@layout MainLayout
+@inject IMeterReadingService MeterService
+@inject AuthStateService AuthState
+@inject NavigationManager Nav
+
+@if (!AuthState.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+
+<div class="amr-page">
+
+    <div class="amr-header">
+        <h1 class="amr-title">@(_isEdit ? "Edit Meter Reading" : "Add Meter Reading")</h1>
+        <p class="amr-subtitle">Add one reading per fuel type per day.</p>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_successMsg))
+    {
+        <div class="amr-alert amr-success">✅ @_successMsg</div>
+    }
+    @if (!string.IsNullOrEmpty(_errorMsg))
+    {
+        <div class="amr-alert amr-error">⚠️ @_errorMsg</div>
+    }
+
+    <div class="amr-card">
+        <EditForm Model="_model" OnValidSubmit="SaveAsync" FormName="MeterReadingForm">
+            <DataAnnotationsValidator />
+
+            <div class="amr-form-row">
+                <div class="form-group">
+                    <label class="amr-label">Fuel type</label>
+                    <InputSelect class="amr-select" @bind-Value="_model.FuelType">
+                        <option value="Electricity">Electricity</option>
+                        <option value="Gas">Gas</option>
+                    </InputSelect>
+                    <ValidationMessage For="() => _model.FuelType" class="val-msg" />
+                </div>
+
+                <div class="form-group">
+                    <label class="amr-label">Reading date</label>
+                    <InputDate class="amr-input" @bind-Value="_model.ReadingDate" />
+                    <ValidationMessage For="() => _model.ReadingDate" class="val-msg" />
+                </div>
+            </div>
+
+            <div class="amr-form-row">
+                <div class="form-group">
+                    <label class="amr-label">Meter reading</label>
+                    <InputNumber class="amr-input" @bind-Value="_model.ReadingValue"
+                                 placeholder="e.g. 51220" />
+                    <ValidationMessage For="() => _model.ReadingValue" class="val-msg" />
+                </div>
+
+                <div class="form-group">
+                    <label class="amr-label">Notes <span class="amr-optional">optional</span></label>
+                    <InputText class="amr-input" @bind-Value="_model.Notes"
+                               placeholder="Optional note" />
+                </div>
+            </div>
+
+            <div class="amr-actions">
+                <button type="submit" class="amr-btn-primary" disabled="@_saving">
+                    @(_saving ? "Saving…" : (_isEdit ? "💾 Update Reading" : "➕ Add Reading"))
+                </button>
+                <button type="button" class="amr-btn-secondary" @onclick="Clear">Clear</button>
+            </div>
+        </EditForm>
+
+        <div class="amr-hint">
+            💡 <em>Example: Electricity reading on 08 May = 51192 and 12 May = 51220. Usage = 28 units.</em>
+        </div>
+    </div>
+
+</div>
+
+@code {
+    [Parameter] public int EditId { get; set; }
+
+    private MeterReadingDto _model = new();
+    private bool _saving;
+    private bool _isEdit;
+    private string _successMsg = string.Empty;
+    private string _errorMsg   = string.Empty;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (EditId > 0)
+        {
+            _isEdit = true;
+            var existing = await MeterService.GetByIdAsync(AuthState.CurrentUser!.Id, EditId);
+            if (existing is not null)
+                _model = existing;
+        }
+        else
+        {
+            _isEdit = false;
+            _model  = new MeterReadingDto { ReadingDate = DateTime.Today };
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving     = true;
+        _successMsg = string.Empty;
+        _errorMsg   = string.Empty;
+
+        var result = await MeterService.SaveAsync(AuthState.CurrentUser!.Id, _model);
+
+        if (result.Success)
+        {
+            _successMsg = result.Message;
+            await Task.Delay(800);
+            Nav.NavigateTo("/meter-readings");
+        }
+        else
+        {
+            _errorMsg = result.Message;
+        }
+
+        _saving = false;
+    }
+
+    private void Clear()
+    {
+        _model      = new MeterReadingDto { ReadingDate = DateTime.Today };
+        _successMsg = string.Empty;
+        _errorMsg   = string.Empty;
+    }
+}

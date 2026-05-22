@@ -1,0 +1,8 @@
+<Solution>
+  <Project Path="FuelMeter.Api/FuelMeter.Api.csproj" />
+  <Project Path="FuelMeter.Components/FuelMeter.Components.csproj" />
+  <Project Path="FuelMeter.Core/FuelMeter.Core.csproj" />
+  <Project Path="FuelMeter.csproj" />
+  <Project Path="FuelMeter.Data/FuelMeter.Data.csproj" />
+  <Project Path="FuelMeter.Web/FuelMeter.Web.csproj" />
+</Solution>

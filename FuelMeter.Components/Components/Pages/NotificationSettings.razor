@@ -1,0 +1,210 @@
+@page "/notification-settings"
+@using FuelMeter.Core.DTOs
+@using FuelMeter.Core.Services
+@using FuelMeter.Core.Services.Interfaces
+@layout MainLayout
+@inject INotificationSettingsService NotifService
+@inject INotificationScheduler Scheduler
+@inject AuthStateService AuthState
+@inject NavigationManager Nav
+
+@if (!AuthState.IsAuthenticated)
+{
+    Nav.NavigateTo("/login");
+    return;
+}
+
+<div class="settings-page">
+
+    <div class="settings-header">
+        <h1 class="settings-title">Notification Settings</h1>
+        <p class="settings-subtitle">Set reminders to log your electricity and gas meter readings.</p>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_successMessage))
+    {
+        <div class="alert alert-success">✅ @_successMessage</div>
+    }
+    @if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <div class="alert alert-error">⚠️ @_errorMessage</div>
+    }
+
+    @if (_loading)
+    {
+        <div class="settings-loading">Loading…</div>
+    }
+    else
+    {
+        <EditForm Model="_model" OnValidSubmit="SaveAsync" FormName="NotifSettingsForm">
+
+            <!-- Electricity Reminder -->
+            <div class="settings-section">
+                <div class="section-head">
+                    <span class="section-icon">⚡</span>
+                    <h2 class="section-title">Electricity Reminder</h2>
+                    <label class="notif-toggle">
+                        <InputCheckbox @bind-Value="_model.ElectricityEnabled" />
+                        <span class="toggle-label">@(_model.ElectricityEnabled ? "On" : "Off")</span>
+                    </label>
+                </div>
+
+                @if (_model.ElectricityEnabled)
+                {
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Frequency</label>
+                            <InputSelect class="form-control" @bind-Value="_model.ElectricityFrequency">
+                                <option value="Daily">Daily</option>
+                                <option value="Weekly">Weekly</option>
+                                <option value="Monthly">Monthly</option>
+                            </InputSelect>
+                        </div>
+                        <div class="form-group">
+                            <label>Time</label>
+                            <div class="time-row">
+                                <InputNumber class="form-control time-input" @bind-Value="_model.ElectricityHour"
+                                             min="0" max="23" placeholder="HH" />
+                                <span class="time-sep">:</span>
+                                <InputNumber class="form-control time-input" @bind-Value="_model.ElectricityMinute"
+                                             min="0" max="59" placeholder="MM" />
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (_model.ElectricityFrequency == "Weekly")
+                    {
+                        <div class="form-group">
+                            <label>Day of Week</label>
+                            <InputSelect class="form-control" @bind-Value="_model.ElectricityDayOfWeek">
+                                @foreach (var d in _days) { <option value="@d.Value">@d.Label</option> }
+                            </InputSelect>
+                        </div>
+                    }
+                    @if (_model.ElectricityFrequency == "Monthly")
+                    {
+                        <div class="form-group">
+                            <label>Day of Month (1–28)</label>
+                            <InputNumber class="form-control" @bind-Value="_model.ElectricityDayOfMonth"
+                                         min="1" max="28" placeholder="1" />
+                        </div>
+                    }
+                }
+            </div>
+
+            <!-- Gas Reminder -->
+            <div class="settings-section">
+                <div class="section-head">
+                    <span class="section-icon">🔥</span>
+                    <h2 class="section-title">Gas Reminder</h2>
+                    <label class="notif-toggle">
+                        <InputCheckbox @bind-Value="_model.GasEnabled" />
+                        <span class="toggle-label">@(_model.GasEnabled ? "On" : "Off")</span>
+                    </label>
+                </div>
+
+                @if (_model.GasEnabled)
+                {
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Frequency</label>
+                            <InputSelect class="form-control" @bind-Value="_model.GasFrequency">
+                                <option value="Daily">Daily</option>
+                                <option value="Weekly">Weekly</option>
+                                <option value="Monthly">Monthly</option>
+                            </InputSelect>
+                        </div>
+                        <div class="form-group">
+                            <label>Time</label>
+                            <div class="time-row">
+                                <InputNumber class="form-control time-input" @bind-Value="_model.GasHour"
+                                             min="0" max="23" placeholder="HH" />
+                                <span class="time-sep">:</span>
+                                <InputNumber class="form-control time-input" @bind-Value="_model.GasMinute"
+                                             min="0" max="59" placeholder="MM" />
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (_model.GasFrequency == "Weekly")
+                    {
+                        <div class="form-group">
+                            <label>Day of Week</label>
+                            <InputSelect class="form-control" @bind-Value="_model.GasDayOfWeek">
+                                @foreach (var d in _days) { <option value="@d.Value">@d.Label</option> }
+                            </InputSelect>
+                        </div>
+                    }
+                    @if (_model.GasFrequency == "Monthly")
+                    {
+                        <div class="form-group">
+                            <label>Day of Month (1–28)</label>
+                            <InputNumber class="form-control" @bind-Value="_model.GasDayOfMonth"
+                                         min="1" max="28" placeholder="1" />
+                        </div>
+                    }
+                }
+            </div>
+
+            <div class="settings-actions">
+                <button type="submit" class="btn-save" disabled="@_saving">
+                    @(_saving ? "Saving…" : "🔔 Save & Schedule")
+                </button>
+            </div>
+
+        </EditForm>
+    }
+
+</div>
+
+@code {
+    private NotificationSettingsDto _model = new();
+    private bool _loading = true;
+    private bool _saving;
+    private string _successMessage = string.Empty;
+    private string _errorMessage   = string.Empty;
+
+    private record DayOption(int Value, string Label);
+    private static readonly List<DayOption> _days =
+    [
+        new(0, "Sunday"), new(1, "Monday"), new(2, "Tuesday"),
+        new(3, "Wednesday"), new(4, "Thursday"), new(5, "Friday"), new(6, "Saturday")
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthState.IsAuthenticated) return;
+        _model   = await NotifService.GetAsync(AuthState.CurrentUser!.Id);
+        _loading = false;
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving         = true;
+        _successMessage = string.Empty;
+        _errorMessage   = string.Empty;
+
+        // Request permission first (no-op if already granted)
+        await Scheduler.RequestPermissionAsync();
+
+        // Reschedule or cancel based on current settings
+        if (_model.ElectricityEnabled)
+            await Scheduler.ScheduleElectricityReminderAsync(_model);
+        else
+            await Scheduler.CancelElectricityReminderAsync();
+
+        if (_model.GasEnabled)
+            await Scheduler.ScheduleGasReminderAsync(_model);
+        else
+            await Scheduler.CancelGasReminderAsync();
+
+        var result = await NotifService.SaveAsync(AuthState.CurrentUser!.Id, _model);
+
+        if (result.Success)
+            _successMessage = result.Message;
+        else
+            _errorMessage = result.Message;
+
+        _saving = false;
+    }
+}

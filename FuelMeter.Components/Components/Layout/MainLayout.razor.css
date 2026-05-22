@@ -1,0 +1,218 @@
+.app-shell {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    background: var(--fm-bg);
+    position: relative;
+    overflow-x: hidden;
+}
+
+/* ── Top Bar ────────────────────────────────────────────── */
+.topbar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 0 16px;
+    height: 56px;
+    background: var(--fm-blue-dark);
+    color: #fff;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 8px rgba(0,0,0,.25);
+}
+
+.topbar-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: .5px;
+}
+
+/* ── Hamburger Button ───────────────────────────────────── */
+.hamburger {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    width: 26px;
+    height: 20px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    flex-shrink: 0;
+}
+
+.hamburger span {
+    display: block;
+    height: 3px;
+    background: #fff;
+    border-radius: 2px;
+    transition: transform .25s ease, opacity .2s ease;
+}
+
+/* ── Overlay ────────────────────────────────────────────── */
+.drawer-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.45);
+    z-index: 199;
+}
+
+.drawer-open .drawer-overlay {
+    display: block;
+}
+
+/* ── Drawer ─────────────────────────────────────────────── */
+.drawer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 270px;
+    height: 100vh;
+    background: #fff;
+    z-index: 200;
+    display: flex;
+    flex-direction: column;
+    transform: translateX(-100%);
+    transition: transform .28s cubic-bezier(.4,0,.2,1);
+    box-shadow: 4px 0 20px rgba(0,0,0,.18);
+    overflow-y: auto;
+}
+
+.drawer-open .drawer {
+    transform: translateX(0);
+}
+
+/* ── Drawer Header ──────────────────────────────────────── */
+.drawer-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 18px 16px 14px;
+    background: var(--fm-blue-dark);
+    color: #fff;
+    flex-shrink: 0;
+}
+
+.drawer-logo {
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+}
+
+.drawer-brand {
+    font-size: 1.1rem;
+    font-weight: 700;
+    flex: 1;
+}
+
+.drawer-close {
+    background: none;
+    border: none;
+    color: rgba(255,255,255,.7);
+    font-size: 1.1rem;
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 4px;
+    line-height: 1;
+}
+
+.drawer-close:hover { color: #fff; }
+
+/* ── Drawer User ────────────────────────────────────────── */
+.drawer-user {
+    padding: 14px 18px 10px;
+    border-bottom: 1px solid var(--fm-border);
+}
+
+.drawer-user-name {
+    display: block;
+    font-weight: 600;
+    color: var(--fm-text);
+    font-size: .95rem;
+}
+
+.drawer-user-email {
+    display: block;
+    font-size: .78rem;
+    color: var(--fm-muted);
+    margin-top: 2px;
+}
+
+/* ── Drawer Nav ─────────────────────────────────────────── */
+.drawer-nav {
+    list-style: none;
+    margin: 10px 0 0;
+    padding: 0 10px;
+    flex: 1;
+}
+
+.drawer-nav li {
+    margin-bottom: 2px;
+}
+
+.drawer-link {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    color: var(--fm-text);
+    text-decoration: none;
+    font-size: .95rem;
+    font-weight: 500;
+    transition: background .15s ease, color .15s ease;
+}
+
+.drawer-link:hover {
+    background: var(--fm-bg);
+    color: var(--fm-blue);
+}
+
+.drawer-link-active {
+    background: #EEF4FF !important;
+    color: var(--fm-blue) !important;
+    font-weight: 700;
+}
+
+.drawer-icon {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    stroke: currentColor;
+}
+
+/* ── Drawer Footer ──────────────────────────────────────── */
+.drawer-footer {
+    padding: 14px 16px;
+    border-top: 1px solid var(--fm-border);
+}
+
+.drawer-logout {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 11px 14px;
+    background: none;
+    border: 1px solid var(--fm-border);
+    border-radius: 10px;
+    color: var(--fm-error);
+    font-size: .9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .15s;
+}
+
+.drawer-logout:hover { background: var(--fm-error-bg); }
+
+/* ── Main Content ───────────────────────────────────────── */
+.main-content {
+    flex: 1;
+    padding: 20px 16px;
+    max-width: 960px;
+    width: 100%;
+    margin: 0 auto;
+}
+

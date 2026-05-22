@@ -1,0 +1,123 @@
+@page "/register"
+@using FuelMeter.Components.Models
+@using FuelMeter.Core.DTOs
+@using FuelMeter.Core.Services.Interfaces
+@layout AuthLayout
+@inject IAuthService AuthService
+@inject NavigationManager Nav
+
+<div class="auth-page">
+    <div class="auth-card">
+
+        <div class="auth-logo">
+            <img src="images/fuelMeter_Logo.png" alt="FuelMeter" />
+            <span class="auth-logo-text">FuelMeter</span>
+        </div>
+
+        <h2 class="auth-title">Create account</h2>
+        <p class="auth-subtitle">Register to start storing your daily fuel readings.</p>
+
+        @if (!string.IsNullOrEmpty(_errorMessage))
+        {
+            <div class="auth-alert auth-alert-error">@_errorMessage</div>
+        }
+
+        @if (_registerSuccess)
+        {
+            <div class="auth-alert auth-alert-success">Account created! You can now <a href="/login">sign in</a>.</div>
+        }
+
+        <EditForm Model="_model" OnValidSubmit="HandleRegisterAsync" FormName="RegisterForm">
+            <DataAnnotationsValidator />
+
+            <div class="form-group">
+                <label for="fullName">Full name</label>
+                <InputText id="fullName" class="form-control" @bind-Value="_model.FullName"
+                           placeholder="Your full name" autocomplete="name" />
+                <ValidationMessage For="() => _model.FullName" class="validation-message" />
+            </div>
+
+            <div class="form-group">
+                <label for="email">Email address</label>
+                <InputText id="email" class="form-control" @bind-Value="_model.Email"
+                           placeholder="you@example.com" autocomplete="email" />
+                <ValidationMessage For="() => _model.Email" class="validation-message" />
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <InputText id="password" type="password" class="form-control" @bind-Value="_model.Password"
+                           placeholder="Create a password (min. 8 characters)" autocomplete="new-password" />
+                <ValidationMessage For="() => _model.Password" class="validation-message" />
+            </div>
+
+            <div class="form-group">
+                <label for="confirmPassword">Confirm password</label>
+                <InputText id="confirmPassword" type="password" class="form-control" @bind-Value="_model.ConfirmPassword"
+                           placeholder="Repeat your password" autocomplete="new-password" />
+                <ValidationMessage For="() => _model.ConfirmPassword" class="validation-message" />
+            </div>
+
+            <div class="button-row">
+                <button type="submit" class="btn btn-primary" disabled="@_isBusy">
+                    @if (_isBusy)
+                    {
+                        <span>Creating account…</span>
+                    }
+                    else
+                    {
+                        <span>Register</span>
+                    }
+                </button>
+            </div>
+        </EditForm>
+
+        <p class="auth-footer">
+            Already have an account? <a href="/login">Sign in here</a>
+        </p>
+
+    </div>
+</div>
+
+@code {
+    private readonly RegisterModel _model = new();
+    private bool _isBusy;
+    private bool _registerSuccess;
+    private string _errorMessage = string.Empty;
+
+    private async Task HandleRegisterAsync()
+    {
+        _isBusy = true;
+        _errorMessage = string.Empty;
+        _registerSuccess = false;
+
+        try
+        {
+            var result = await AuthService.RegisterAsync(new RegisterRequest
+            {
+                FullName = _model.FullName,
+                Email    = _model.Email,
+                Password = _model.Password
+            });
+
+            if (result.Success)
+            {
+                _registerSuccess = true;
+                await Task.Delay(1500);
+                Nav.NavigateTo("/login");
+            }
+            else
+            {
+                _errorMessage = result.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Registration failed: {ex.Message}";
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+}

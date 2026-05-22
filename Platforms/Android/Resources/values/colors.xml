@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- FuelMeter brand colors: electric blue + flame orange -->
+    <color name="colorPrimary">#1976D2</color>
+    <color name="colorPrimaryDark">#0D47A1</color>
+    <color name="colorAccent">#FF6D00</color>
+    <color name="colorStatusBar">#0D47A1</color>
+    <color name="colorBackground">#F0F4FF</color>
+</resources>

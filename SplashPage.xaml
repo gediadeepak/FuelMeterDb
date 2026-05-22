@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="FuelMeter.SplashPage"
+             BackgroundColor="#FFFFFF"
+             Shell.NavBarIsVisible="False">
+
+    <Grid RowDefinitions="*, Auto, *"
+          BackgroundColor="#FFFFFF">
+
+        <!-- Centered logo + brand name -->
+        <VerticalStackLayout Grid.Row="1"
+                             Spacing="20"
+                             HorizontalOptions="Center"
+                             VerticalOptions="Center">
+
+            <Image Source="fuelmeter_logo_img.png"
+                   WidthRequest="140"
+                   HeightRequest="140"
+                   Aspect="AspectFit"
+                   HorizontalOptions="Center" />
+
+            <Label Text="FuelMeter"
+                   FontSize="32"
+                   FontAttributes="Bold"
+                   HorizontalOptions="Center"
+                   HorizontalTextAlignment="Center">
+                <Label.TextColor>
+                    <Color>#1976D2</Color>
+                </Label.TextColor>
+            </Label>
+
+            <Label Text="Track · Monitor · Save"
+                   FontSize="14"
+                   HorizontalOptions="Center"
+                   HorizontalTextAlignment="Center">
+                <Label.TextColor>
+                    <Color>#546E7A</Color>
+                </Label.TextColor>
+            </Label>
+
+        </VerticalStackLayout>
+
+        <!-- Bottom loading bar -->
+        <ProgressBar Grid.Row="2"
+                     x:Name="LoadingBar"
+                     Progress="0"
+                     ProgressColor="#1976D2"
+                     VerticalOptions="End"
+                     Margin="40,0,40,48" />
+
+    </Grid>
+
+</ContentPage>

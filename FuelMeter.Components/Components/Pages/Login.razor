@@ -1,0 +1,115 @@
+@page "/"
+@page "/login"
+@using FuelMeter.Components.Models
+@using FuelMeter.Core.DTOs
+@using FuelMeter.Core.Services
+@using FuelMeter.Core.Services.Interfaces
+@layout AuthLayout
+@inject IAuthService AuthService
+@inject AuthStateService AuthState
+@inject NavigationManager Nav
+
+<div class="auth-page">
+    <div class="auth-card">
+
+        <div class="auth-logo">
+            <img src="images/fuelMeter_Logo.png" alt="FuelMeter" />
+            <span class="auth-logo-text">FuelMeter</span>
+        </div>
+
+        <h2 class="auth-title">Welcome back</h2>
+        <p class="auth-subtitle">Sign in to manage your readings and provider settings.</p>
+
+        @if (!string.IsNullOrEmpty(_errorMessage))
+        {
+            <div class="auth-alert auth-alert-error">@_errorMessage</div>
+        }
+
+        @if (_loginSuccess)
+        {
+            <div class="auth-alert auth-alert-success">Login successful! Redirecting…</div>
+        }
+
+        <EditForm Model="_model" OnValidSubmit="HandleLoginAsync" FormName="LoginForm">
+            <DataAnnotationsValidator />
+
+            <div class="form-group">
+                <label for="email">Email address</label>
+                <InputText id="email" class="form-control" @bind-Value="_model.Email"
+                           placeholder="you@example.com" autocomplete="email" />
+                <ValidationMessage For="() => _model.Email" class="validation-message" />
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <InputText id="password" type="password" class="form-control" @bind-Value="_model.Password"
+                           placeholder="Enter your password" autocomplete="current-password" />
+                <ValidationMessage For="() => _model.Password" class="validation-message" />
+            </div>
+
+            <div class="button-row">
+                <button type="submit" class="btn btn-primary" disabled="@_isBusy">
+                    @if (_isBusy)
+                    {
+                        <span>Signing in…</span>
+                    }
+                    else
+                    {
+                        <span>Login</span>
+                    }
+                </button>
+                <a href="/forgot-password" class="btn btn-secondary">Forgot Password</a>
+            </div>
+        </EditForm>
+
+        <p class="auth-footer">
+            Don't have an account? <a href="/register">Register here</a>
+        </p>
+
+    </div>
+</div>
+
+@code {
+    private readonly LoginModel _model = new();
+    private bool _isBusy;
+    private bool _loginSuccess;
+    private string _errorMessage = string.Empty;
+
+    private async Task HandleLoginAsync()
+    {
+        _isBusy = true;
+        _errorMessage = string.Empty;
+        _loginSuccess = false;
+
+        try
+        {
+            var result = await AuthService.LoginAsync(new LoginRequest
+            {
+                Email    = _model.Email,
+                Password = _model.Password
+            });
+
+            if (result.Success)
+            {
+                AuthState.SetUser(result.User!, result.Token ?? string.Empty);
+                _loginSuccess = true;
+                await Task.Delay(600);
+                Nav.NavigateTo("/dashboard");
+            }
+            else
+            {
+                _errorMessage = result.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Login failed: {ex.Message}";
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+
+    private void HandleForgotPassword() { }
+}
