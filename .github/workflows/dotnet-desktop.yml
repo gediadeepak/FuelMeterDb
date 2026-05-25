@@ -1,0 +1,171 @@
+name: Build FuelMeter
+
+on:
+  push:
+    branches: [ "main" ]
+
+  pull_request:
+    branches: [ "main" ]
+
+  workflow_dispatch:
+
+jobs:
+
+  build-web:
+    name: Build Web
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore Web
+        run: dotnet restore FuelMeter.Web/FuelMeter.Web.csproj
+
+      - name: Publish Web
+        run: dotnet publish FuelMeter.Web/FuelMeter.Web.csproj -c Release -o publish/web
+
+      - name: Upload Web Build
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-build
+          path: publish/web
+
+  build-android:
+    name: Build Android APK
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install MAUI Workloads
+        run: dotnet workload install maui
+
+      - name: Restore Workloads
+        run: dotnet workload restore FuelMeter.csproj
+
+      - name: Publish Android APK
+        run: dotnet publish FuelMeter.csproj -f net10.0-android -c Release -p:AndroidPackageFormat=apk
+
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: |
+            **/bin/Release/net10.0-android/**/*.apk
+
+  build-windows:
+    name: Build Windows
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install MAUI Workloads
+        run: dotnet workload install maui
+
+      - name: Restore Workloads
+        run: dotnet workload restore FuelMeter.csproj
+
+      - name: Build Windows Framework Dependent
+        run: dotnet build FuelMeter.csproj -f net10.0-windows10.0.19041.0 -c Release -p:WindowsPackageType=None
+
+      - name: Upload Windows Framework Dependent Build
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-framework-dependent
+          path: |
+            **/bin/Release/net10.0-windows10.0.19041.0/**/*.exe
+            **/bin/Release/net10.0-windows10.0.19041.0/**/*.dll
+            **/bin/Release/net10.0-windows10.0.19041.0/**/*.json
+
+  publish-windows-self-contained:
+    name: Publish Windows Self Contained EXE
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install MAUI Workloads
+        run: dotnet workload install maui
+
+      - name: Restore Workloads
+        run: dotnet workload restore FuelMeter.csproj
+
+      - name: Publish Windows Self Contained
+        run: >
+          dotnet publish FuelMeter.csproj
+          -f net10.0-windows10.0.19041.0
+          -c Release
+          -p:WindowsPackageType=None
+          -p:SelfContained=true
+          -p:PublishSingleFile=false
+
+      - name: Upload Windows Self Contained Build
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-self-contained
+          path: |
+            **/bin/Release/net10.0-windows10.0.19041.0/**/*.exe
+            **/bin/Release/net10.0-windows10.0.19041.0/**/*.dll
+            **/bin/Release/net10.0-windows10.0.19041.0/**/*.json
+
+  publish-windows-msix:
+    name: Publish Windows MSIX
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install MAUI Workloads
+        run: dotnet workload install maui
+
+      - name: Restore Workloads
+        run: dotnet workload restore FuelMeter.csproj
+
+      - name: Publish Windows MSIX
+        run: >
+          dotnet publish FuelMeter.csproj
+          -f net10.0-windows10.0.19041.0
+          -c Release
+          -p: WindowsPackageType=MSIX
+          -p: AppxPackageSigningEnabled=false
+
+      - name: Upload Windows MSIX
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-msix
+          path: |
+            **/bin/Release/net10.0-windows10.0.19041.0/**/*.msix
+            **/bin/Release/net10.0-windows10.0.19041.0/**/*.msixbundle
+            **/AppPackages/**/*.msix
+            **/AppPackages/**/*.msixbundle
