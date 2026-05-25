@@ -27,7 +27,7 @@ jobs:
         run: dotnet workload install maui-android
 
       - name: Restore Android
-        run: dotnet restore FuelMeter.csproj -p:TargetFramework=net10.0-android
+        run: dotnet restore FuelMeter.csproj -f net10.0-android
 
       - name: Build Android
         run: dotnet build FuelMeter.csproj -f net10.0-android -c Release --no-restore
@@ -37,9 +37,9 @@ jobs:
         with:
           name: android-build
           path: |
-            bin/Release/net10.0-android/**/*.apk
-            bin/Release/net10.0-android/**/*.aab
-            bin/Release/net10.0-android/**/*.dll
+            **/bin/Release/net10.0-android/**/*.apk
+            **/bin/Release/net10.0-android/**/*.aab
+            **/bin/Release/net10.0-android/**/*.dll
 
   build-windows:
     name: Build Windows
@@ -58,7 +58,7 @@ jobs:
         run: dotnet workload install maui-windows
 
       - name: Restore Windows
-        run: dotnet restore FuelMeter.csproj -p:TargetFramework=net10.0-windows10.0.19041.0 -r win-x64
+        run: dotnet restore FuelMeter.csproj -f net10.0-windows10.0.19041.0 -r win-x64
 
       - name: Build Windows
         run: dotnet build FuelMeter.csproj -f net10.0-windows10.0.19041.0 -c Release -r win-x64 --no-restore
@@ -68,6 +68,6 @@ jobs:
         with:
           name: windows-build
           path: |
-            bin/Release/net10.0-windows10.0.19041.0/win-x64/**/*.exe
-            bin/Release/net10.0-windows10.0.19041.0/win-x64/**/*.dll
-            bin/Release/net10.0-windows10.0.19041.0/win-x64/**/*.msix
+            **/bin/Release/net10.0-windows10.0.19041.0/win-x64/**/*.exe
+            **/bin/Release/net10.0-windows10.0.19041.0/win-x64/**/*.dll
+            **/bin/Release/net10.0-windows10.0.19041.0/win-x64/**/*.msix
