@@ -17,25 +17,19 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Show repository files
-        shell: pwsh
-        run: |
-          Write-Host "Root files:"
-          dir
-
-          Write-Host "Solution files:"
-          Get-ChildItem -Recurse -Filter *.sln | Select-Object FullName
-
-          Write-Host "Project files:"
-          Get-ChildItem -Recurse -Filter *.csproj | Select-Object FullName
-
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
 
-      - name: Restore
-        run: dotnet restore
+      - name: Install MAUI Workloads
+        run: dotnet workload install maui android maui-android
+
+      - name: Restore Workloads
+        run: dotnet workload restore FuelMeter.csproj
+
+      - name: Restore NuGet Packages
+        run: dotnet restore FuelMeter.csproj
 
       - name: Build
-        run: dotnet build --configuration Release --no-restore
+        run: dotnet build FuelMeter.csproj --configuration Release --no-restore
