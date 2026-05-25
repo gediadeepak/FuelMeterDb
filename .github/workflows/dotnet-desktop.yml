@@ -11,8 +11,8 @@ on:
 
 jobs:
 
-  build-web:
-    name: Build Web
+  build-api:
+    name: Build API
     runs-on: windows-latest
 
     steps:
@@ -24,17 +24,42 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Restore Web
-        run: dotnet restore FuelMeter.Web/FuelMeter.Web.csproj
+      - name: Restore API
+        run: dotnet restore FuelMeter.Api/FuelMeter.Api.csproj
 
-      - name: Publish Web
-        run: dotnet publish FuelMeter.Web/FuelMeter.Web.csproj -c Release -o publish/web
+      - name: Publish API
+        run: dotnet publish FuelMeter.Api/FuelMeter.Api.csproj -c Release -o publish/api
 
-      - name: Upload Web Build
+      - name: Upload API Build
         uses: actions/upload-artifact@v4
         with:
-          name: web-build
-          path: publish/web
+          name: api-build
+          path: publish/api
+
+  build-website:
+    name: Build Website
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore Website
+        run: dotnet restore FuelMeter.Web/FuelMeter.Web.csproj
+
+      - name: Publish Website
+        run: dotnet publish FuelMeter.Web/FuelMeter.Web.csproj -c Release -o publish/website
+
+      - name: Upload Website Build
+        uses: actions/upload-artifact@v4
+        with:
+          name: website-build
+          path: publish/website
 
   build-android:
     name: Build Android APK
@@ -157,8 +182,8 @@ jobs:
           dotnet publish FuelMeter.csproj
           -f net10.0-windows10.0.19041.0
           -c Release
-          -p: WindowsPackageType=MSIX
-          -p: AppxPackageSigningEnabled=false
+          -p:WindowsPackageType=MSIX
+          -p:AppxPackageSigningEnabled=false
 
       - name: Upload Windows MSIX
         uses: actions/upload-artifact@v4
