@@ -3,28 +3,39 @@ name: Build FuelMeter
 on:
   push:
     branches: [ "main" ]
+
   pull_request:
     branches: [ "main" ]
+
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: windows-latest
 
-    env:
-      Solution_Name: FuelMeter.sln
-
     steps:
-      - name: Checkout
+      - name: Checkout source
         uses: actions/checkout@v4
+
+      - name: Show repository files
+        shell: pwsh
+        run: |
+          Write-Host "Root files:"
+          dir
+
+          Write-Host "Solution files:"
+          Get-ChildItem -Recurse -Filter *.sln | Select-Object FullName
+
+          Write-Host "Project files:"
+          Get-ChildItem -Recurse -Filter *.csproj | Select-Object FullName
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 10.0.x
+          dotnet-version: '10.0.x'
 
       - name: Restore
-        run: dotnet restore $env:Solution_Name
+        run: dotnet restore
 
       - name: Build
-        run: dotnet build $env:Solution_Name --configuration Release --no-restore
+        run: dotnet build --configuration Release --no-restore
