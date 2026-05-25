@@ -10,6 +10,32 @@ on:
   workflow_dispatch:
 
 jobs:
+
+  build-web:
+    name: Build Web
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore Web
+        run: dotnet restore FuelMeter.Web/FuelMeter.Web.csproj
+
+      - name: Publish Web
+        run: dotnet publish FuelMeter.Web/FuelMeter.Web.csproj -c Release -o publish/web
+
+      - name: Upload Web Build
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-build
+          path: publish/web
+
   build-android:
     name: Build Android
     runs-on: windows-latest
@@ -23,10 +49,10 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Install MAUI workload
+      - name: Install MAUI Workloads
         run: dotnet workload install maui
 
-      - name: Restore workloads
+      - name: Restore Workloads
         run: dotnet workload restore FuelMeter.csproj
 
       - name: Build Android
@@ -53,19 +79,20 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Install MAUI workload
+      - name: Install MAUI Workloads
         run: dotnet workload install maui
 
-      - name: Restore workloads
+      - name: Restore Workloads
         run: dotnet workload restore FuelMeter.csproj
 
       - name: Build Windows
-        run: dotnet build FuelMeter.csproj -f net10.0-windows10.0.19041.0 -c Release -r win-x64
+        run: dotnet build FuelMeter.csproj -f net10.0-windows10.0.19041.0 -c Release -p:WindowsPackageType=None
 
       - name: Upload Windows Build
         uses: actions/upload-artifact@v4
         with:
           name: windows-build
           path: |
-            **/bin/Release/net10.0-windows10.0.19041.0/win-x64/**/*.exe
-            **/bin/Release/net10.0-windows10.0.19041.0/win-x64/**/*.msix
+            **/bin/Release/net10.0-windows10.0.19041.0/**/*.exe
+            **/bin/Release/net10.0-windows10.0.19041.0/**/*.dll
+            **/bin/Release/net10.0-windows10.0.19041.0/**/*.msix
