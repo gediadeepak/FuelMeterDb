@@ -55,6 +55,16 @@ namespace FuelMeter
                         HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
                 };
                 var http = new HttpClient(handler) { BaseAddress = new Uri(apiBase) };
+
+                // Configure headers to avoid ModSecurity/WAF 403 errors
+                http.DefaultRequestHeaders.UserAgent.ParseAdd("FuelMeter-Windows/1.0");
+                http.DefaultRequestHeaders.Accept.Add(
+                    new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+                http.DefaultRequestHeaders.AcceptEncoding.Add(
+                    new System.Net.Http.Headers.StringWithQualityHeaderValue("gzip"));
+                http.DefaultRequestHeaders.AcceptEncoding.Add(
+                    new System.Net.Http.Headers.StringWithQualityHeaderValue("deflate"));
+
                 return new ApiClientService(http);
             });
 

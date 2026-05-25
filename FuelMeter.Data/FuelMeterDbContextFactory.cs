@@ -12,8 +12,7 @@ public class FuelMeterDbContextFactory : IDesignTimeDbContextFactory<FuelMeterDb
     {
         var options = new DbContextOptionsBuilder<FuelMeterDbContext>()
             .UseSqlServer(
-                "Server=tcp:UOR01UGT23083FB,1433;Database=FuelMeterDb;User ID=sa;Password=P@ssw0rd;" +
-                "TrustServerCertificate=True;MultipleActiveResultSets=True;Connection Timeout=30;")
+                "Server=fuelmeter.shrijiitservices.com;Database=fuelmeterdb_live;User Id=fuelmeterdb;Password=Nn_S?id5jKb7e1mg;TrustServerCertificate=false;MultipleActiveResultSets=True;Encrypt=False;")
             .Options;
 
         return new FuelMeterDbContext(options);

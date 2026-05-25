@@ -4,14 +4,10 @@
 @using FuelMeter.Core.Services.Interfaces
 @layout MainLayout
 @inject IMeterReadingService MeterService
+@inject IBudgetService BudgetService
+@inject IBillEstimationService BillService
 @inject AuthStateService AuthState
 @inject NavigationManager Nav
-
-@if (!AuthState.IsAuthenticated)
-{
-    Nav.NavigateTo("/login");
-    return;
-}
 
 <div class="dashboard">
 
@@ -151,6 +147,106 @@
         <div class="formula-hint">
             💡 <em>Formula: usage = latest meter reading − first meter reading for the selected month. Cost = (usage × price per unit) + (standing charge p/day ÷ 100 × days in month).</em>
         </div>
+
+        <!-- Budget Summary Widget -->
+        @if (_budgetSummaries.Any())
+        {
+            <div class="budget-widget">
+                <h3 class="widget-title">📊 Budget Summary - @(new DateTime(_data.Year, _data.Month, 1).ToString("MMMM yyyy"))</h3>
+                <div class="budget-cards">
+                    @foreach (var summary in _budgetSummaries)
+                    {
+                        <div class="mini-budget-card @(summary.IsOverBudget ? "over" : "")">
+                            <div class="mini-header">
+                                <span class="mini-icon">@(summary.FuelType == "Electricity" ? "⚡" : "🔥")</span>
+                                <span class="mini-fuel">@summary.FuelType</span>
+                            </div>
+                            <div class="mini-progress">
+                                <div class="mini-bar @(summary.IsOverBudget ? "over" : "")" 
+                                     style="width: @Math.Min(summary.PercentageUsed, 100)%"></div>
+                            </div>
+                            <div class="mini-stats">
+                                <span>@_data.CurrencySymbol@summary.ActualSpent.ToString("N2") / @_data.CurrencySymbol@summary.BudgetLimit.ToString("N2")</span>
+                                <span class="@(summary.IsOverBudget ? "over-text" : "")">@summary.PercentageUsed.ToString("N0")%</span>
+                            </div>
+                        </div>
+                    }
+                </div>
+                <a href="/budget-management" class="widget-link">Manage Budgets →</a>
+            </div>
+        }
+
+        <!-- Bill Comparison Widget -->
+        @if (_electricityComparison != null || _gasComparison != null)
+        {
+            <div class="comparison-widget">
+                <h3 class="widget-title">📈 Bill Comparison vs Last Month</h3>
+                <div class="comparison-grid">
+                    @if (_electricityComparison != null)
+                    {
+                        <div class="comparison-card">
+                            <div class="comparison-header">
+                                <span class="icon">⚡</span>
+                                <span>Electricity</span>
+                            </div>
+                            <div class="comparison-amounts">
+                                <div class="amount current">
+                                    <span class="label">This Month</span>
+                                    <span class="value">@_data.CurrencySymbol@_electricityComparison.CurrentMonthBill.ToString("N2")</span>
+                                </div>
+                                <div class="amount previous">
+                                    <span class="label">Last Month</span>
+                                    <span class="value">@_data.CurrencySymbol@_electricityComparison.PreviousMonthBill.ToString("N2")</span>
+                                </div>
+                            </div>
+                            <div class="comparison-change @GetTrendClass(_electricityComparison.Trend)">
+                                @if (_electricityComparison.Trend == "New")
+                                {
+                                    <span>✨ New — no previous month data</span>
+                                }
+                                else
+                                {
+                                    <span>@GetTrendIcon(_electricityComparison.Trend)</span>
+                                    <span>@_data.CurrencySymbol@Math.Abs(_electricityComparison.ChangeAmount).ToString("N2")</span>
+                                    <span>(@Math.Abs(_electricityComparison.ChangePercentage).ToString("N1")%)</span>
+                                }
+                            </div>
+                        </div>
+                    }
+                    @if (_gasComparison != null)
+                    {
+                        <div class="comparison-card">
+                            <div class="comparison-header">
+                                <span class="icon">🔥</span>
+                                <span>Gas</span>
+                            </div>
+                            <div class="comparison-amounts">
+                                <div class="amount current">
+                                    <span class="label">This Month</span>
+                                    <span class="value">@_data.CurrencySymbol@_gasComparison.CurrentMonthBill.ToString("N2")</span>
+                                </div>
+                                <div class="amount previous">
+                                    <span class="label">Last Month</span>
+                                    <span class="value">@_data.CurrencySymbol@_gasComparison.PreviousMonthBill.ToString("N2")</span>
+                                </div>
+                            </div>
+                            <div class="comparison-change @GetTrendClass(_gasComparison.Trend)">
+                                @if (_gasComparison.Trend == "New")
+                                {
+                                    <span>✨ New — no previous month data</span>
+                                }
+                                else
+                                {
+                                    <span>@GetTrendIcon(_gasComparison.Trend)</span>
+                                    <span>@_data.CurrencySymbol@Math.Abs(_gasComparison.ChangeAmount).ToString("N2")</span>
+                                    <span>(@Math.Abs(_gasComparison.ChangePercentage).ToString("N1")%)</span>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
     }
 
 </div>
@@ -159,6 +255,9 @@
     private DashboardDto? _data;
     private bool _loading = true;
     private string _selectedMonth = DateTime.Today.ToString("yyyy-MM");
+    private List<BudgetSummaryDto> _budgetSummaries = new();
+    private BillComparisonDto? _electricityComparison;
+    private BillComparisonDto? _gasComparison;
 
     private record MonthOption(string Value, string Label);
     private List<MonthOption> _monthOptions = Enumerable
@@ -167,7 +266,17 @@
         .Select(d => new MonthOption(d.ToString("yyyy-MM"), d.ToString("MMMM yyyy")))
         .ToList();
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        // Check authentication before loading data
+        if (!AuthState.IsAuthenticated)
+        {
+            Nav.NavigateTo("/login");
+            return;
+        }
+
+        await LoadAsync();
+    }
 
     private async Task LoadAsync()
     {
@@ -177,10 +286,38 @@
         try
         {
             if (DateTime.TryParse(_selectedMonth + "-01", out var parsed))
-                _data = await MeterService.GetDashboardAsync(
-                    AuthState.CurrentUser!.Id, parsed.Year, parsed.Month);
+            {
+                var userId = AuthState.CurrentUser!.Id;
+
+                // Load existing dashboard data
+                try
+                {
+                    _data = await MeterService.GetDashboardAsync(userId, parsed.Year, parsed.Month);
+                }
+                catch { _data = null; }
+
+                // Load budget summaries (independent — a missing budget should not break the dashboard)
+                _budgetSummaries = new List<BudgetSummaryDto>();
+                try
+                {
+                    var electricityBudget = await BudgetService.GetBudgetSummaryAsync(userId, "Electricity", parsed.Year, parsed.Month);
+                    if (electricityBudget != null) _budgetSummaries.Add(electricityBudget);
+                }
+                catch { }
+                try
+                {
+                    var gasBudget = await BudgetService.GetBudgetSummaryAsync(userId, "Gas", parsed.Year, parsed.Month);
+                    if (gasBudget != null) _budgetSummaries.Add(gasBudget);
+                }
+                catch { }
+
+                // Load bill comparisons (independent)
+                try { _electricityComparison = await BillService.CompareBillsAsync(userId, "Electricity", parsed.Year, parsed.Month); }
+                catch { _electricityComparison = null; }
+                try { _gasComparison = await BillService.CompareBillsAsync(userId, "Gas", parsed.Year, parsed.Month); }
+                catch { _gasComparison = null; }
+            }
         }
-        catch { _data = null; }
         finally { _loading = false; }
     }
 
@@ -203,4 +340,19 @@
         budget > 0
             ? Math.Min(100, Math.Round((double)(cost / budget * 100), 1))
             : (cost > 0 ? 65 : 0);
+
+    private string GetTrendClass(string trend) => trend switch
+    {
+        "Up" => "trend-up",
+        "Down" => "trend-down",
+        "New" => "trend-new",
+        _ => "trend-same"
+    };
+
+    private string GetTrendIcon(string trend) => trend switch
+    {
+        "Up" => "↑",
+        "Down" => "↓",
+        _ => "→"
+    };
 }

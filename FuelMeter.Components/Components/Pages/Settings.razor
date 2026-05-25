@@ -7,12 +7,6 @@
 @inject AuthStateService AuthState
 @inject NavigationManager Nav
 
-@if (!AuthState.IsAuthenticated)
-{
-    Nav.NavigateTo("/login");
-    return;
-}
-
 <div class="settings-page">
 
     <div class="settings-header">
@@ -144,7 +138,12 @@
 
     protected override async Task OnInitializedAsync()
     {
-        if (!AuthState.IsAuthenticated) return;
+        // Check authentication before loading data
+        if (!AuthState.IsAuthenticated)
+        {
+            Nav.NavigateTo("/login");
+            return;
+        }
 
         var existing = await SettingsService.GetSettingsAsync(AuthState.CurrentUser!.Id);
         if (existing is not null)

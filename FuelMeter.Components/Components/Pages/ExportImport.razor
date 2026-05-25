@@ -1,0 +1,361 @@
+@page "/export-import"
+@using FuelMeter.Core.DTOs
+@using FuelMeter.Core.Services
+@using FuelMeter.Core.Services.Interfaces
+@using System.Text.Json
+@layout MainLayout
+@inject IExportImportService ExportImportService
+@inject AuthStateService AuthState
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<div class="export-import-page">
+    <div class="page-header">
+        <div>
+            <h1>Export & Import Data</h1>
+            <p class="subtitle">Backup your data or transfer between devices</p>
+        </div>
+    </div>
+
+    <div class="sections-grid">
+        <!-- Export Section -->
+        <div class="section-card">
+            <div class="section-header">
+                <h2>📤 Export Data</h2>
+                <p>Download your meter readings, budgets, and settings</p>
+            </div>
+
+            <div class="export-options">
+                <button class="export-btn json" @onclick="ExportToJson" disabled="@_exporting">
+                    <span class="icon">📄</span>
+                    <span class="text">
+                        <strong>Export as JSON</strong>
+                        <small>Structured format, best for backups</small>
+                    </span>
+                </button>
+
+                <button class="export-btn csv" @onclick="ExportToCsv" disabled="@_exporting">
+                    <span class="icon">📊</span>
+                    <span class="text">
+                        <strong>Export as CSV</strong>
+                        <small>Spreadsheet format, easy to view</small>
+                    </span>
+                </button>
+            </div>
+
+            @if (_exporting)
+            {
+                <div class="status-message info">Preparing export...</div>
+            }
+
+            @if (_exportSuccess)
+            {
+                <div class="status-message success">
+                    ✓ Export completed! File downloaded successfully.
+                </div>
+            }
+        </div>
+
+        <!-- Import Section -->
+        <div class="section-card">
+            <div class="section-header">
+                <h2>📥 Import Data</h2>
+                <p>Restore data from a previously exported file</p>
+            </div>
+
+            <div class="import-area">
+                <div class="file-upload">
+                    <label for="fileInput" class="upload-label">
+                        <span class="upload-icon">📁</span>
+                        <span class="upload-text">
+                            @if (_selectedFile != null)
+                            {
+                                <strong>@_selectedFile</strong>
+                                <small>Click to change file</small>
+                            }
+                            else
+                            {
+                                <strong>Choose File</strong>
+                                <small>JSON or CSV format</small>
+                            }
+                        </span>
+                    </label>
+                    <InputFile id="fileInput" OnChange="HandleFileSelected" accept=".json,.csv" hidden />
+                </div>
+
+                @if (_selectedFile != null)
+                {
+                    <button class="btn-import" @onclick="ImportFile" disabled="@_importing">
+                        @if (_importing)
+                        {
+                            <span>Importing...</span>
+                        }
+                        else
+                        {
+                            <span>Import Data</span>
+                        }
+                    </button>
+                }
+            </div>
+
+            @if (_importResult != null)
+            {
+                <div class="import-result">
+                    @if (_importResult.Success)
+                    {
+                        <div class="status-message success">
+                            <strong>✓ Import Successful!</strong>
+                            <ul>
+                                <li>Meter readings imported: @_importResult.MeterReadingsImported</li>
+                                <li>Budgets imported: @_importResult.BudgetsImported</li>
+                                @if (_importResult.UserSettingsImported)
+                                {
+                                    <li>User settings imported</li>
+                                }
+                            </ul>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="status-message error">
+                            <strong>✗ Import Failed</strong>
+                            <ul>
+                                @foreach (var error in _importResult.Errors)
+                                {
+                                    <li>@error</li>
+                                }
+                            </ul>
+                        </div>
+                    }
+
+                    @if (_importResult.Warnings.Any())
+                    {
+                        <div class="status-message warning">
+                            <strong>⚠ Warnings</strong>
+                            <ul>
+                                @foreach (var warning in _importResult.Warnings)
+                                {
+                                    <li>@warning</li>
+                                }
+                            </ul>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- Info Section -->
+    <div class="info-section">
+        <h3>📘 How It Works</h3>
+        <div class="info-grid">
+            <div class="info-card">
+                <h4>Export</h4>
+                <ul>
+                    <li><strong>JSON:</strong> Complete backup with all data structures preserved</li>
+                    <li><strong>CSV:</strong> Human-readable format, can be opened in Excel</li>
+                    <li>Includes all meter readings and budgets</li>
+                    <li>Safe to store and share</li>
+                </ul>
+            </div>
+            <div class="info-card">
+                <h4>Import</h4>
+                <ul>
+                    <li>Duplicates are automatically detected</li>
+                    <li>Existing budgets are updated if they match</li>
+                    <li>Invalid data is skipped with warnings</li>
+                    <li>All changes are applied in a transaction</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private bool _exporting = false;
+    private bool _exportSuccess = false;
+    private bool _importing = false;
+    private string? _selectedFile = null;
+    private IBrowserFile? _file = null;
+    private ImportResultDto? _importResult = null;
+
+    protected override Task OnInitializedAsync()
+    {
+        // Check authentication before allowing access
+        if (!AuthState.IsAuthenticated)
+        {
+            Nav.NavigateTo("/login");
+        }
+        return Task.CompletedTask;
+    }
+
+    private async Task ExportToJson()
+    {
+        _exporting = true;
+        _exportSuccess = false;
+        try
+        {
+            var userId = AuthState.CurrentUser?.Id ?? 0;
+            var json = await ExportImportService.ExportToJsonAsync(userId);
+            var fileName = $"fuelmeter-data-{DateTime.Now:yyyyMMdd-HHmmss}.json";
+            await DownloadFile(fileName, json, "application/json");
+            _exportSuccess = true;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Export error: {ex.Message}");
+        }
+        finally
+        {
+            _exporting = false;
+        }
+    }
+
+    private async Task ExportToCsv()
+    {
+        _exporting = true;
+        _exportSuccess = false;
+        try
+        {
+            var userId = AuthState.CurrentUser?.Id ?? 0;
+            var csv = await ExportImportService.ExportToCsvAsync(userId);
+            var fileName = $"fuelmeter-data-{DateTime.Now:yyyyMMdd-HHmmss}.csv";
+            await DownloadFile(fileName, csv, "text/csv");
+            _exportSuccess = true;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Export error: {ex.Message}");
+        }
+        finally
+        {
+            _exporting = false;
+        }
+    }
+
+    private async Task DownloadFile(string fileName, string content, string mimeType)
+    {
+        var bytes = System.Text.Encoding.UTF8.GetBytes(content);
+        var base64 = Convert.ToBase64String(bytes);
+        await JS.InvokeVoidAsync("downloadFile", fileName, base64, mimeType);
+    }
+
+    private void HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        _file = e.File;
+        _selectedFile = _file.Name;
+        _importResult = null;
+    }
+
+    private async Task ImportFile()
+    {
+        if (_file == null) return;
+
+        _importing = true;
+        _importResult = null;
+
+        try
+        {
+            var userId = AuthState.CurrentUser?.Id ?? 0;
+            using var stream = _file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024); // 10MB limit
+            using var reader = new StreamReader(stream);
+            var content = await reader.ReadToEndAsync();
+
+            if (_file.Name.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+            {
+                _importResult = await ExportImportService.ImportFromJsonAsync(userId, content);
+            }
+            else if (_file.Name.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+            {
+                _importResult = await ExportImportService.ImportFromCsvAsync(userId, content);
+            }
+            else
+            {
+                _importResult = new ImportResultDto(
+                    false,
+                    0,
+                    0,
+                    false,
+                    new List<string> { "Unsupported file format. Please use .json or .csv files." },
+                    new List<string>()
+                );
+            }
+        }
+        catch (Exception ex)
+        {
+            _importResult = new ImportResultDto(
+                false,
+                0,
+                0,
+                false,
+                new List<string> { $"Import failed: {ex.Message}" },
+                new List<string>()
+            );
+        }
+        finally
+        {
+            _importing = false;
+        }
+    }
+}
+
+<style>
+    .export-import-page { padding: 2rem; max-width: 1200px; margin: 0 auto; }
+    .page-header { margin-bottom: 2rem; }
+    .page-header h1 { margin: 0; font-size: 2rem; }
+    .subtitle { color: #666; margin-top: 0.5rem; }
+    .sections-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem; }
+    .section-card { background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 2rem; }
+    .section-header { margin-bottom: 1.5rem; }
+    .section-header h2 { margin: 0 0 0.5rem 0; font-size: 1.5rem; }
+    .section-header p { color: #666; margin: 0; }
+    .export-options { display: flex; flex-direction: column; gap: 1rem; }
+    .export-btn { display: flex; align-items: center; gap: 1rem; padding: 1rem; border: 2px solid #e0e0e0; background: white; border-radius: 8px; cursor: pointer; text-align: left; transition: all 0.2s; }
+    .export-btn:hover:not(:disabled) { border-color: #1976d2; background: #e3f2fd; }
+    .export-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .export-btn .icon { font-size: 2rem; }
+    .export-btn .text { display: flex; flex-direction: column; flex: 1; }
+    .export-btn .text strong { display: block; margin-bottom: 0.25rem; }
+    .export-btn .text small { color: #666; }
+    .import-area { display: flex; flex-direction: column; gap: 1rem; }
+    .file-upload { width: 100%; }
+    .upload-label { display: flex; align-items: center; gap: 1rem; padding: 2rem; border: 2px dashed #e0e0e0; border-radius: 8px; cursor: pointer; transition: all 0.2s; }
+    .upload-label:hover { border-color: #1976d2; background: #e3f2fd; }
+    .upload-icon { font-size: 2rem; }
+    .upload-text { display: flex; flex-direction: column; flex: 1; }
+    .upload-text strong { display: block; margin-bottom: 0.25rem; }
+    .upload-text small { color: #666; }
+    .btn-import { padding: 1rem; background: #1976d2; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; }
+    .btn-import:hover:not(:disabled) { background: #1565c0; }
+    .btn-import:disabled { opacity: 0.5; cursor: not-allowed; }
+    .status-message { padding: 1rem; border-radius: 8px; margin-top: 1rem; }
+    .status-message.success { background: #e8f5e9; border: 1px solid #4caf50; color: #2e7d32; }
+    .status-message.error { background: #ffebee; border: 1px solid #f44336; color: #c62828; }
+    .status-message.warning { background: #fff8e1; border: 1px solid #ff9800; color: #e65100; }
+    .status-message.info { background: #e3f2fd; border: 1px solid #1976d2; color: #0d47a1; }
+    .status-message ul { margin: 0.5rem 0 0 1.5rem; }
+    .import-result { margin-top: 1rem; }
+    .info-section { background: #f5f5f5; border-radius: 8px; padding: 2rem; }
+    .info-section h3 { margin: 0 0 1rem 0; }
+    .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+    .info-card { background: white; border-radius: 8px; padding: 1.5rem; }
+    .info-card h4 { margin: 0 0 1rem 0; color: #1976d2; }
+    .info-card ul { margin: 0; padding-left: 1.5rem; }
+    .info-card li { margin-bottom: 0.5rem; }
+
+    @@media (max-width: 768px) {
+        .sections-grid { grid-template-columns: 1fr; }
+        .info-grid { grid-template-columns: 1fr; }
+    }
+</style>
+
+<script>
+    window.downloadFile = function(fileName, base64Content, mimeType) {
+        const link = document.createElement('a');
+        link.href = `data:${mimeType};base64,${base64Content}`;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+</script>

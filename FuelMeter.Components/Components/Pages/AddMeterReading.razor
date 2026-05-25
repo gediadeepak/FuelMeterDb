@@ -8,8 +8,6 @@
 @inject AuthStateService AuthState
 @inject NavigationManager Nav
 
-@if (!AuthState.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
-
 <div class="amr-page">
 
     <div class="amr-header">
@@ -88,6 +86,13 @@
 
     protected override async Task OnParametersSetAsync()
     {
+        // Check authentication before loading data
+        if (!AuthState.IsAuthenticated)
+        {
+            Nav.NavigateTo("/login");
+            return;
+        }
+
         if (EditId > 0)
         {
             _isEdit = true;

@@ -186,17 +186,32 @@ public class MeterReadingService(FuelMeterDbContext db) : IMeterReadingService
             var group = monthReadings.Where(r => r.FuelType == fuelType).ToList();
             if (group.Count == 0) return 0;
 
-            // First reading of the month — look for reading just before month start
             var firstInMonth = group.First().ReadingValue;
-            var prevReading  = db.MeterReadings
+            var lastInMonth  = group.Last().ReadingValue;
+
+            // Look for the most recent reading before this month.
+            var monthStart = new DateTime(year, month, 1);
+            var prev = db.MeterReadings
                 .Where(r => r.UserId == userId
                          && r.FuelType == fuelType
-                         && r.ReadingDate < new DateTime(year, month, 1))
+                         && r.ReadingDate < monthStart)
                 .OrderByDescending(r => r.ReadingDate)
-                .FirstOrDefault()?.ReadingValue ?? firstInMonth;
+                .FirstOrDefault();
 
-            var lastInMonth = group.Last().ReadingValue;
-            return Math.Max(0, lastInMonth - prevReading);
+            // Only trust the previous reading if it's recent enough (≤ 40 days before month start).
+            // Otherwise (gap too large, or no prior reading at all) fall back to last − first within the month
+            // to avoid attributing the entire lifetime meter delta to a single month.
+            decimal baseline;
+            if (prev != null && (monthStart - prev.ReadingDate).TotalDays <= 40)
+            {
+                baseline = prev.ReadingValue;
+            }
+            else
+            {
+                baseline = firstInMonth;
+            }
+
+            return Math.Max(0, lastInMonth - baseline);
         }
 
         var elecUsage = CalcUsage("Electricity");

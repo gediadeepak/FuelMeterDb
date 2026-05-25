@@ -22,6 +22,15 @@ public class ApiClientService(IHttpClientFactory factory, AuthStateService authS
     public async Task<TResponse?> GetAsync<TResponse>(string url)
     {
         var response = await CreateClient().GetAsync(url);
+
+        // Treat 404 / 204 as "no resource" so callers returning nullable types
+        // (e.g. GetBudgetSummaryAsync) get null instead of an exception.
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound ||
+            response.StatusCode == System.Net.HttpStatusCode.NoContent)
+        {
+            return default;
+        }
+
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<TResponse>();
     }

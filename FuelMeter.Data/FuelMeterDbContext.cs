@@ -10,6 +10,7 @@ public class FuelMeterDbContext(DbContextOptions<FuelMeterDbContext> options) : 
     public DbSet<UserSettings> UserSettings => Set<UserSettings>();
     public DbSet<MeterReading> MeterReadings => Set<MeterReading>();
     public DbSet<NotificationSettings> NotificationSettings => Set<NotificationSettings>();
+    public DbSet<Budget> Budgets => Set<Budget>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

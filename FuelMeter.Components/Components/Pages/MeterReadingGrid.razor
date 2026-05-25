@@ -7,8 +7,6 @@
 @inject AuthStateService AuthState
 @inject NavigationManager Nav
 
-@if (!AuthState.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
-
 <div class="mrg-page">
 
     <div class="mrg-header">
@@ -144,7 +142,17 @@
         .Select(d => new MonthOption(d.ToString("yyyy-MM"), d.ToString("MMMM yyyy")))
         .ToList();
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        // Check authentication before loading data
+        if (!AuthState.IsAuthenticated)
+        {
+            Nav.NavigateTo("/login");
+            return;
+        }
+
+        await LoadAsync();
+    }
 
     private async Task LoadAsync()
     {

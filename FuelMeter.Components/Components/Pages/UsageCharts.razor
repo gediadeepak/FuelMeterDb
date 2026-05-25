@@ -7,12 +7,6 @@
 @inject AuthStateService AuthState
 @inject NavigationManager Nav
 
-@if (!AuthState.IsAuthenticated)
-{
-    Nav.NavigateTo("/login");
-    return;
-}
-
 <div class="charts-page">
 
     <div class="settings-header">
@@ -147,7 +141,17 @@
     private int    _year    = DateTime.Today.Year;
     private int    _month   = DateTime.Today.Month;
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        // Check authentication before loading data
+        if (!AuthState.IsAuthenticated)
+        {
+            Nav.NavigateTo("/login");
+            return;
+        }
+
+        await LoadAsync();
+    }
 
     private async Task SetView(string v)
     {

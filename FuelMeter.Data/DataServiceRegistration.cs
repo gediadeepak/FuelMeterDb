@@ -29,6 +29,9 @@ public static class DataServiceRegistration
         services.AddScoped<ISettingsService, SettingsService>();
         services.AddScoped<IMeterReadingService, MeterReadingService>();
         services.AddScoped<INotificationSettingsService, NotificationSettingsService>();
+        services.AddScoped<IBudgetService, BudgetService>();
+        services.AddScoped<IExportImportService, ExportImportService>();
+        services.AddScoped<IBillEstimationService, BillEstimationService>();
         services.AddScoped<IEmailService, SmtpEmailService>();
         services.Configure<EmailSettings>(opts =>
         {

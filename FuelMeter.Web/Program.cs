@@ -19,6 +19,8 @@ var apiBase = builder.Configuration["ApiSettings:BaseUrl"]
 builder.Services.AddHttpClient("FuelMeterApi", client =>
 {
     client.BaseAddress = new Uri(apiBase);
+    client.DefaultRequestHeaders.Add("User-Agent", "FuelMeterWeb/1.0");
+    client.DefaultRequestHeaders.Add("Accept", "application/json");
 }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
 {
     ServerCertificateCustomValidationCallback =
@@ -33,6 +35,9 @@ builder.Services.AddScoped<IAuthService,                 HttpAuthService>();
 builder.Services.AddScoped<IMeterReadingService,         HttpMeterReadingService>();
 builder.Services.AddScoped<ISettingsService,             HttpSettingsService>();
 builder.Services.AddScoped<INotificationSettingsService, HttpNotificationSettingsService>();
+builder.Services.AddScoped<IBudgetService,               HttpBudgetService>();
+builder.Services.AddScoped<IBillEstimationService,       HttpBillEstimationService>();
+builder.Services.AddScoped<IExportImportService,         HttpExportImportService>();
 
 // ── Auth state (per Blazor Server circuit) ────────────────────────────────────
 builder.Services.AddScoped<AuthStateService>();
