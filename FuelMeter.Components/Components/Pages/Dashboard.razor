@@ -148,6 +148,63 @@
             💡 <em>Formula: usage = latest meter reading − first meter reading for the selected month. Cost = (usage × price per unit) + (standing charge p/day ÷ 100 × days in month).</em>
         </div>
 
+        <!-- Projected End-of-Month Bill -->
+        @if (_projectionAvailable && (_electricityProjected > 0 || _gasProjected > 0))
+        {
+            <div class="projection-widget">
+                <h3 class="widget-title">🔮 Projected End-of-Month Bill</h3>
+                <p class="projection-sub">
+                    Based on @_daysElapsed of @_daysInMonth days. Forecast extrapolates current spend across the full month.
+                </p>
+                <div class="projection-grid">
+                    <div class="projection-card @GetProjectionClass(_electricityProjected, _data.ElectricityBudget)">
+                        <div class="projection-header">
+                            <span class="icon">⚡</span>
+                            <span>Electricity</span>
+                        </div>
+                        <div class="projection-value">@_data.CurrencySymbol@_electricityProjected.ToString("N2")</div>
+                        <div class="projection-meta">
+                            So far: @_data.CurrencySymbol@_data.ElectricityCost.ToString("N2")
+                            @if (_data.ElectricityBudget > 0)
+                            {
+                                <span> · Budget: @_data.CurrencySymbol@_data.ElectricityBudget.ToString("N2")</span>
+                                @if (_electricityProjected > _data.ElectricityBudget)
+                                {
+                                    <span class="over-pill">Over by @_data.CurrencySymbol@((_electricityProjected - _data.ElectricityBudget).ToString("N2"))</span>
+                                }
+                                else
+                                {
+                                    <span class="under-pill">Under by @_data.CurrencySymbol@((_data.ElectricityBudget - _electricityProjected).ToString("N2"))</span>
+                                }
+                            }
+                        </div>
+                    </div>
+                    <div class="projection-card @GetProjectionClass(_gasProjected, _data.GasBudget)">
+                        <div class="projection-header">
+                            <span class="icon">🔥</span>
+                            <span>Gas</span>
+                        </div>
+                        <div class="projection-value">@_data.CurrencySymbol@_gasProjected.ToString("N2")</div>
+                        <div class="projection-meta">
+                            So far: @_data.CurrencySymbol@_data.GasCost.ToString("N2")
+                            @if (_data.GasBudget > 0)
+                            {
+                                <span> · Budget: @_data.CurrencySymbol@_data.GasBudget.ToString("N2")</span>
+                                @if (_gasProjected > _data.GasBudget)
+                                {
+                                    <span class="over-pill">Over by @_data.CurrencySymbol@((_gasProjected - _data.GasBudget).ToString("N2"))</span>
+                                }
+                                else
+                                {
+                                    <span class="under-pill">Under by @_data.CurrencySymbol@((_data.GasBudget - _gasProjected).ToString("N2"))</span>
+                                }
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+
         <!-- Budget Summary Widget -->
         @if (_budgetSummaries.Any())
         {
@@ -259,6 +316,13 @@
     private BillComparisonDto? _electricityComparison;
     private BillComparisonDto? _gasComparison;
 
+    // Projection (end-of-month forecast) — only meaningful for the current, in-progress month
+    private decimal _electricityProjected;
+    private decimal _gasProjected;
+    private bool    _projectionAvailable;
+    private int     _daysElapsed;
+    private int     _daysInMonth;
+
     private record MonthOption(string Value, string Label);
     private List<MonthOption> _monthOptions = Enumerable
         .Range(0, 12)
@@ -316,9 +380,31 @@
                 catch { _electricityComparison = null; }
                 try { _gasComparison = await BillService.CompareBillsAsync(userId, "Gas", parsed.Year, parsed.Month); }
                 catch { _gasComparison = null; }
+
+                // Bill projection — only relevant for the current month (not past months)
+                var today = DateTime.Today;
+                _projectionAvailable = parsed.Year == today.Year && parsed.Month == today.Month;
+                _electricityProjected = 0;
+                _gasProjected = 0;
+                if (_projectionAvailable)
+                {
+                    _daysInMonth = DateTime.DaysInMonth(parsed.Year, parsed.Month);
+                    _daysElapsed = Math.Min(today.Day, _daysInMonth);
+
+                    try { _electricityProjected = await BillService.ProjectMonthlyBillAsync(userId, "Electricity", parsed.Year, parsed.Month); }
+                    catch { _electricityProjected = 0; }
+                    try { _gasProjected = await BillService.ProjectMonthlyBillAsync(userId, "Gas", parsed.Year, parsed.Month); }
+                    catch { _gasProjected = 0; }
+                }
             }
         }
         finally { _loading = false; }
+    }
+
+    private string GetProjectionClass(decimal projected, decimal budget)
+    {
+        if (budget <= 0) return "projection-neutral";
+        return projected > budget ? "projection-over" : "projection-under";
     }
 
     // Donut arc: 302 = full circumference (2πr ≈ 2×3.14×48)

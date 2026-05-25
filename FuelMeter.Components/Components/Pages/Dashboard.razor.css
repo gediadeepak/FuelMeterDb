@@ -457,3 +457,86 @@
     color: var(--fm-blue);
     font-style: italic;
 }
+
+/* Projected End-of-Month Bill */
+.projection-widget {
+    background: var(--fm-card);
+    border: 1px solid var(--fm-border);
+    border-radius: 14px;
+    padding: 16px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.06);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.projection-sub {
+    font-size: .78rem;
+    color: var(--fm-muted);
+    margin: 0;
+}
+
+.projection-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.projection-card {
+    border: 1px solid var(--fm-border);
+    border-radius: 12px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background: #fafbff;
+}
+
+.projection-card.projection-over  { border-color: #e53935; background: #fff5f5; }
+.projection-card.projection-under { border-color: #2e7d32; background: #f4fbf5; }
+
+.projection-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+    color: var(--fm-text);
+    font-size: .9rem;
+}
+
+.projection-value {
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: var(--fm-text);
+}
+
+.projection-meta {
+    font-size: .78rem;
+    color: var(--fm-muted);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.over-pill {
+    background: #ffebee;
+    color: #c62828;
+    padding: 2px 8px;
+    border-radius: 99px;
+    font-weight: 600;
+    font-size: .72rem;
+}
+
+.under-pill {
+    background: #e8f5e9;
+    color: #2e7d32;
+    padding: 2px 8px;
+    border-radius: 99px;
+    font-weight: 600;
+    font-size: .72rem;
+}
+
+@media (max-width: 540px) {
+    .projection-grid { grid-template-columns: 1fr; }
+}
