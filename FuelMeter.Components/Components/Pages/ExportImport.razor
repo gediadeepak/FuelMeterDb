@@ -12,22 +12,30 @@
 <div class="export-import-page">
     <div class="page-header">
         <div>
-            <h1>Export & Import Data</h1>
+            <h1><i data-lucide="database-backup" class="ei-icon-lg"></i> Export &amp; Import Data</h1>
             <p class="subtitle">Backup your data or transfer between devices</p>
         </div>
     </div>
+
+    @if (!string.IsNullOrEmpty(_errorMsg))
+    {
+        <div class="status-message error">
+            <i data-lucide="alert-triangle" class="ei-icon"></i>
+            <span>@_errorMsg</span>
+        </div>
+    }
 
     <div class="sections-grid">
         <!-- Export Section -->
         <div class="section-card">
             <div class="section-header">
-                <h2>📤 Export Data</h2>
+                <h2><i data-lucide="upload" class="ei-icon"></i> Export Data</h2>
                 <p>Download your meter readings, budgets, and settings</p>
             </div>
 
             <div class="export-options">
                 <button class="export-btn json" @onclick="ExportToJson" disabled="@_exporting">
-                    <span class="icon">📄</span>
+                    <i data-lucide="file-json" class="ei-icon-lg"></i>
                     <span class="text">
                         <strong>Export as JSON</strong>
                         <small>Structured format, best for backups</small>
@@ -35,7 +43,7 @@
                 </button>
 
                 <button class="export-btn csv" @onclick="ExportToCsv" disabled="@_exporting">
-                    <span class="icon">📊</span>
+                    <i data-lucide="file-spreadsheet" class="ei-icon-lg"></i>
                     <span class="text">
                         <strong>Export as CSV</strong>
                         <small>Spreadsheet format, easy to view</small>
@@ -51,7 +59,8 @@
             @if (_exportSuccess)
             {
                 <div class="status-message success">
-                    ✓ Export completed! File downloaded successfully.
+                    <i data-lucide="check-circle" class="ei-icon"></i>
+                    <span>Export completed! File downloaded successfully.</span>
                 </div>
             }
         </div>
@@ -59,19 +68,19 @@
         <!-- Import Section -->
         <div class="section-card">
             <div class="section-header">
-                <h2>📥 Import Data</h2>
+                <h2><i data-lucide="download" class="ei-icon"></i> Import Data</h2>
                 <p>Restore data from a previously exported file</p>
             </div>
 
             <div class="import-area">
                 <div class="file-upload">
                     <label for="fileInput" class="upload-label">
-                        <span class="upload-icon">📁</span>
+                        <i data-lucide="folder-open" class="ei-icon-lg"></i>
                         <span class="upload-text">
                             @if (_selectedFile != null)
                             {
                                 <strong>@_selectedFile</strong>
-                                <small>Click to change file</small>
+                                <small>Tap to change file</small>
                             }
                             else
                             {
@@ -80,12 +89,13 @@
                             }
                         </span>
                     </label>
-                    <InputFile id="fileInput" OnChange="HandleFileSelected" accept=".json,.csv" hidden />
+                    <InputFile id="fileInput" OnChange="HandleFileSelected" accept=".json,.csv" class="ei-file-hidden" />
                 </div>
 
                 @if (_selectedFile != null)
                 {
                     <button class="btn-import" @onclick="ImportFile" disabled="@_importing">
+                        <i data-lucide="upload-cloud" class="ei-icon"></i>
                         @if (_importing)
                         {
                             <span>Importing...</span>
@@ -178,10 +188,10 @@
     private string? _selectedFile = null;
     private IBrowserFile? _file = null;
     private ImportResultDto? _importResult = null;
+    private string? _errorMsg = null;
 
     protected override Task OnInitializedAsync()
     {
-        // Check authentication before allowing access
         if (!AuthState.IsAuthenticated)
         {
             Nav.NavigateTo("/login");
@@ -189,10 +199,16 @@
         return Task.CompletedTask;
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        try { await JS.InvokeVoidAsync("lucide.createIcons"); } catch { }
+    }
+
     private async Task ExportToJson()
     {
         _exporting = true;
         _exportSuccess = false;
+        _errorMsg = null;
         try
         {
             var userId = AuthState.CurrentUser?.Id ?? 0;
@@ -203,7 +219,7 @@
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Export error: {ex.Message}");
+            _errorMsg = $"Export failed: {ex.Message}";
         }
         finally
         {
@@ -215,6 +231,7 @@
     {
         _exporting = true;
         _exportSuccess = false;
+        _errorMsg = null;
         try
         {
             var userId = AuthState.CurrentUser?.Id ?? 0;
@@ -225,7 +242,7 @@
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Export error: {ex.Message}");
+            _errorMsg = $"Export failed: {ex.Message}";
         }
         finally
         {
@@ -300,9 +317,12 @@
 }
 
 <style>
-    .export-import-page { padding: 2rem; max-width: 1200px; margin: 0 auto; }
-    .page-header { margin-bottom: 2rem; }
-    .page-header h1 { margin: 0; font-size: 2rem; }
+    .export-import-page { padding: 1.5rem; max-width: 1200px; margin: 0 auto; box-sizing: border-box; }
+    .ei-icon { width: 18px; height: 18px; vertical-align: middle; }
+    .ei-icon-lg { width: 28px; height: 28px; vertical-align: middle; }
+    .ei-file-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+    .page-header { margin-bottom: 1.5rem; }
+    .page-header h1 { margin: 0; font-size: 1.6rem; display: inline-flex; align-items: center; gap: 8px; color: #1976D2; }
     .subtitle { color: #666; margin-top: 0.5rem; }
     .sections-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem; }
     .section-card { background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 2rem; }
@@ -325,10 +345,10 @@
     .upload-text { display: flex; flex-direction: column; flex: 1; }
     .upload-text strong { display: block; margin-bottom: 0.25rem; }
     .upload-text small { color: #666; }
-    .btn-import { padding: 1rem; background: #1976d2; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; }
+    .btn-import { padding: 0.9rem 1rem; background: #1976d2; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; width: 100%; }
     .btn-import:hover:not(:disabled) { background: #1565c0; }
     .btn-import:disabled { opacity: 0.5; cursor: not-allowed; }
-    .status-message { padding: 1rem; border-radius: 8px; margin-top: 1rem; }
+    .status-message { display: flex; align-items: flex-start; gap: 8px; padding: 0.85rem 1rem; border-radius: 8px; margin-top: 1rem; }
     .status-message.success { background: #e8f5e9; border: 1px solid #4caf50; color: #2e7d32; }
     .status-message.error { background: #ffebee; border: 1px solid #f44336; color: #c62828; }
     .status-message.warning { background: #fff8e1; border: 1px solid #ff9800; color: #e65100; }
@@ -346,16 +366,6 @@
     @@media (max-width: 768px) {
         .sections-grid { grid-template-columns: 1fr; }
         .info-grid { grid-template-columns: 1fr; }
+        .export-import-page { padding: 1rem; }
     }
 </style>
-
-<script>
-    window.downloadFile = function(fileName, base64Content, mimeType) {
-        const link = document.createElement('a');
-        link.href = `data:${mimeType};base64,${base64Content}`;
-        link.download = fileName;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    };
-</script>

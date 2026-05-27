@@ -6,21 +6,22 @@
 @inject ISettingsService SettingsService
 @inject AuthStateService AuthState
 @inject NavigationManager Nav
+@inject IJSRuntime JS
 
 <div class="settings-page">
 
     <div class="settings-header">
-        <h1 class="settings-title">Settings</h1>
+        <h1 class="settings-title"><i data-lucide="settings" class="bi" aria-hidden="true"></i> Settings</h1>
         <p class="settings-subtitle">Configure your electricity and gas provider details.</p>
     </div>
 
     @if (!string.IsNullOrEmpty(_successMessage))
     {
-        <div class="alert alert-success">✅ @_successMessage</div>
+        <div class="alert alert-success"><i data-lucide="check-circle" class="bi" aria-hidden="true"></i> @_successMessage</div>
     }
     @if (!string.IsNullOrEmpty(_errorMessage))
     {
-        <div class="alert alert-error">⚠️ @_errorMessage</div>
+        <div class="alert alert-error"><i data-lucide="alert-triangle" class="bi" aria-hidden="true"></i> @_errorMessage</div>
     }
 
     @if (_loading)
@@ -35,7 +36,7 @@
             <!-- Electricity Section -->
             <div class="settings-section">
                 <div class="section-head">
-                    <span class="section-icon">⚡</span>
+                    <span class="section-icon"><i data-lucide="zap" class="bi" aria-hidden="true"></i></span>
                     <h2 class="section-title">Electricity</h2>
                 </div>
 
@@ -69,7 +70,7 @@
             <!-- Gas Section -->
             <div class="settings-section">
                 <div class="section-head">
-                    <span class="section-icon">🔥</span>
+                    <span class="section-icon"><i data-lucide="flame" class="bi" aria-hidden="true"></i></span>
                     <h2 class="section-title">Gas</h2>
                 </div>
 
@@ -103,7 +104,7 @@
             <!-- Currency Section -->
             <div class="settings-section">
                 <div class="section-head">
-                    <span class="section-icon">💰</span>
+                    <span class="section-icon"><i data-lucide="banknote" class="bi" aria-hidden="true"></i></span>
                     <h2 class="section-title">Currency</h2>
                 </div>
                 <div class="form-row">
@@ -120,7 +121,14 @@
 
             <div class="settings-actions">
                 <button type="submit" class="btn-save" disabled="@_saving">
-                    @(_saving ? "Saving…" : "💾 Save Settings")
+                    @if (_saving)
+                    {
+                        <span>Saving…</span>
+                    }
+                    else
+                    {
+                        <span><i data-lucide="save" class="bi" aria-hidden="true"></i> Save Settings</span>
+                    }
                 </button>
             </div>
 
@@ -150,6 +158,11 @@
             _model = existing;
 
         _loading = false;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        try { await JS.InvokeVoidAsync("lucide.createIcons"); } catch { }
     }
 
     private async Task SaveAsync()

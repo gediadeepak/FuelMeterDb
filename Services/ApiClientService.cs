@@ -10,6 +10,13 @@ namespace FuelMeter.Services;
 /// </summary>
 public class ApiClientService(HttpClient http) : IApiClientService
 {
+    /// <summary>
+    /// Exposes the underlying HttpClient for callers that need to read
+    /// non-JSON content (e.g. CSV exports) without going through
+    /// ReadFromJsonAsync.
+    /// </summary>
+    public HttpClient GetHttpClient() => http;
+
     public void SetToken(string? token)
     {
         http.DefaultRequestHeaders.Authorization = token is not null

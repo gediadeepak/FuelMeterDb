@@ -1,36 +1,64 @@
-.stmt-page { display: flex; flex-direction: column; gap: 16px; padding: 16px; }
-.stmt-title { font-size: 1.4rem; margin: 0; }
+.stmt-page { display: flex; flex-direction: column; gap: 16px; padding: 16px; max-width: 900px; margin: 0 auto; width: 100%; box-sizing: border-box; }
+
+.stmt-title { font-size: 1.4rem; margin: 0; display: flex; align-items: center; gap: 8px; color: #1976D2; }
 .stmt-subtitle { color: #666; margin: 4px 0 0; font-size: .9rem; }
+.stmt-icon-lg { width: 24px; height: 24px; }
+.stmt-icon { width: 18px; height: 18px; }
 
 .stmt-card {
-    background: #fff; padding: 14px; border-radius: 10px;
+    background: #fff; padding: 16px; border-radius: 12px;
     box-shadow: 0 1px 3px rgba(0,0,0,.06);
+    display: flex; flex-direction: column; gap: 14px;
 }
-.stmt-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-.stmt-row label { display: flex; align-items: center; gap: 6px; font-size: .9rem; }
-.stmt-row select { padding: 4px 8px; border-radius: 6px; border: 1px solid #ccc; }
+.stmt-controls { display: flex; flex-wrap: wrap; gap: 12px; }
+.stmt-field { display: flex; flex-direction: column; gap: 4px; flex: 1 1 200px; min-width: 0; }
+.stmt-field label { font-size: .8rem; color: #666; font-weight: 600; }
+.stmt-select {
+    padding: 10px 12px; border-radius: 8px; border: 1px solid #ccc;
+    background: #fff; font-size: .95rem; width: 100%; box-sizing: border-box;
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23666' d='M6 8L0 0h12z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px;
+}
 
+.stmt-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .stmt-btn {
-    background: #f1f3f5; border: 1px solid #d6d6d6; padding: 8px 14px;
-    border-radius: 8px; cursor: pointer; font-size: .9rem;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    background: #f1f3f5; border: 1px solid #d6d6d6; padding: 10px 16px;
+    border-radius: 8px; cursor: pointer; font-size: .95rem; min-height: 44px;
+    flex: 1 1 140px;
 }
 .stmt-btn:disabled { opacity: .6; cursor: not-allowed; }
 .stmt-btn-primary { background: #2D6CDF; color: #fff; border-color: #2D6CDF; }
+
+.stmt-status { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; border-radius: 8px; font-size: .9rem; }
+.stmt-error { background: #FDECEA; color: #C0392B; border: 1px solid #F5C6CB; }
 
 .stmt-loading, .stmt-empty {
     background: #fff; padding: 20px; border-radius: 10px; text-align: center; color: #555;
 }
 
 .stmt-doc {
-    background: #fff; padding: 28px; border-radius: 10px;
+    background: #fff; padding: 22px; border-radius: 12px;
     box-shadow: 0 1px 3px rgba(0,0,0,.06); color: #222;
 }
-.stmt-doc-header h2 { margin: 0 0 8px; }
-.stmt-meta { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 4px 16px; margin-bottom: 16px; font-size: .9rem; }
+.stmt-doc-title { margin: 0 0 12px; font-size: 1.3rem; color: #1976D2; }
+.stmt-doc-sub { margin: 18px 0 8px; font-size: 1.05rem; }
 
-.stmt-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-.stmt-table th, .stmt-table td { padding: 10px 12px; border-bottom: 1px solid #e5e5e5; text-align: left; }
-.stmt-table th { background: #fafafa; }
-.stmt-total td { border-top: 2px solid #333; }
+.stmt-meta { display: grid; grid-template-columns: 1fr; gap: 6px 16px; font-size: .9rem; }
+.stmt-meta > div { display: flex; gap: 6px; }
+.stmt-meta .lbl { font-weight: 600; color: #555; min-width: 90px; }
 
-.stmt-disclaimer { margin-top: 18px; font-size: .8rem; color: #777; font-style: italic; }
+.stmt-rows { display: flex; flex-direction: column; gap: 10px; }
+.stmt-row-card { background: #FAFBFC; border: 1px solid #ECEFF1; border-radius: 10px; padding: 12px; }
+.stmt-row-head { font-weight: 700; display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.stmt-row-body { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: .9rem; }
+.stmt-row-body > div { display: flex; gap: 6px; }
+.stmt-row-body .lbl { color: #777; }
+.stmt-row-total { background: #EEF5FF; border-color: #BBDEFB; }
+
+.stmt-disclaimer { margin-top: 16px; font-size: .8rem; color: #777; font-style: italic; }
+
+@media (min-width: 600px) {
+    .stmt-meta { grid-template-columns: 1fr 1fr; }
+}

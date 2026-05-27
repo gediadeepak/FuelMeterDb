@@ -7,21 +7,22 @@
 @inject IMeterReadingService MeterService
 @inject AuthStateService AuthState
 @inject NavigationManager Nav
+@inject IJSRuntime JS
 
 <div class="amr-page">
 
     <div class="amr-header">
-        <h1 class="amr-title">@(_isEdit ? "Edit Meter Reading" : "Add Meter Reading")</h1>
+        <h1 class="amr-title"><i data-lucide="plus-circle" class="bi" aria-hidden="true"></i> @(_isEdit ? "Edit Meter Reading" : "Add Meter Reading")</h1>
         <p class="amr-subtitle">Add one reading per fuel type per day.</p>
     </div>
 
     @if (!string.IsNullOrEmpty(_successMsg))
     {
-        <div class="amr-alert amr-success">✅ @_successMsg</div>
+        <div class="amr-alert amr-success"><i data-lucide="check-circle" class="bi" aria-hidden="true"></i> @_successMsg</div>
     }
     @if (!string.IsNullOrEmpty(_errorMsg))
     {
-        <div class="amr-alert amr-error">⚠️ @_errorMsg</div>
+        <div class="amr-alert amr-error"><i data-lucide="alert-triangle" class="bi" aria-hidden="true"></i> @_errorMsg</div>
     }
 
     <div class="amr-card">
@@ -62,14 +63,25 @@
 
             <div class="amr-actions">
                 <button type="submit" class="amr-btn-primary" disabled="@_saving">
-                    @(_saving ? "Saving…" : (_isEdit ? "💾 Update Reading" : "➕ Add Reading"))
+                    @if (_saving)
+                    {
+                        <span>Saving…</span>
+                    }
+                    else if (_isEdit)
+                    {
+                        <span><i data-lucide="save" class="bi" aria-hidden="true"></i> Update Reading</span>
+                    }
+                    else
+                    {
+                        <span><i data-lucide="plus-circle" class="bi" aria-hidden="true"></i> Add Reading</span>
+                    }
                 </button>
-                <button type="button" class="amr-btn-secondary" @onclick="Clear">Clear</button>
+                <button type="button" class="amr-btn-secondary" @onclick="Clear"><i data-lucide="rotate-ccw" class="bi" aria-hidden="true"></i> Clear</button>
             </div>
         </EditForm>
 
         <div class="amr-hint">
-            💡 <em>Example: Electricity reading on 08 May = 51192 and 12 May = 51220. Usage = 28 units.</em>
+            <i data-lucide="lightbulb" class="bi" aria-hidden="true"></i> <em>Example: Electricity reading on 08 May = 51192 and 12 May = 51220. Usage = 28 units.</em>
         </div>
     </div>
 
@@ -105,6 +117,11 @@
             _isEdit = false;
             _model  = new MeterReadingDto { ReadingDate = DateTime.Today };
         }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        try { await JS.InvokeVoidAsync("lucide.createIcons"); } catch { }
     }
 
     private async Task SaveAsync()

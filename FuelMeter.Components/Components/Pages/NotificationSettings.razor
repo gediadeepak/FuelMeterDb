@@ -7,21 +7,22 @@
 @inject INotificationScheduler Scheduler
 @inject AuthStateService AuthState
 @inject NavigationManager Nav
+@inject IJSRuntime JS
 
 <div class="settings-page">
 
     <div class="settings-header">
-        <h1 class="settings-title">Notification Settings</h1>
+        <h1 class="settings-title"><i data-lucide="bell" class="bi" aria-hidden="true"></i> Notification Settings</h1>
         <p class="settings-subtitle">Set reminders to log your electricity and gas meter readings.</p>
     </div>
 
     @if (!string.IsNullOrEmpty(_successMessage))
     {
-        <div class="alert alert-success">✅ @_successMessage</div>
+        <div class="alert alert-success"><i data-lucide="check-circle" class="bi" aria-hidden="true"></i> @_successMessage</div>
     }
     @if (!string.IsNullOrEmpty(_errorMessage))
     {
-        <div class="alert alert-error">⚠️ @_errorMessage</div>
+        <div class="alert alert-error"><i data-lucide="alert-triangle" class="bi" aria-hidden="true"></i> @_errorMessage</div>
     }
 
     @if (_loading)
@@ -35,7 +36,7 @@
             <!-- Electricity Reminder -->
             <div class="settings-section">
                 <div class="section-head">
-                    <span class="section-icon">⚡</span>
+                    <span class="section-icon"><i data-lucide="zap" class="bi" aria-hidden="true"></i></span>
                     <h2 class="section-title">Electricity Reminder</h2>
                     <label class="notif-toggle">
                         <InputCheckbox @bind-Value="_model.ElectricityEnabled" />
@@ -89,7 +90,7 @@
             <!-- Gas Reminder -->
             <div class="settings-section">
                 <div class="section-head">
-                    <span class="section-icon">🔥</span>
+                    <span class="section-icon"><i data-lucide="flame" class="bi" aria-hidden="true"></i></span>
                     <h2 class="section-title">Gas Reminder</h2>
                     <label class="notif-toggle">
                         <InputCheckbox @bind-Value="_model.GasEnabled" />
@@ -142,7 +143,14 @@
 
             <div class="settings-actions">
                 <button type="submit" class="btn-save" disabled="@_saving">
-                    @(_saving ? "Saving…" : "🔔 Save & Schedule")
+                    @if (_saving)
+                    {
+                        <span>Saving…</span>
+                    }
+                    else
+                    {
+                        <span><i data-lucide="bell" class="bi" aria-hidden="true"></i> Save &amp; Schedule</span>
+                    }
                 </button>
             </div>
 
@@ -176,6 +184,11 @@
 
         _model   = await NotifService.GetAsync(AuthState.CurrentUser!.Id);
         _loading = false;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        try { await JS.InvokeVoidAsync("lucide.createIcons"); } catch { }
     }
 
     private async Task SaveAsync()

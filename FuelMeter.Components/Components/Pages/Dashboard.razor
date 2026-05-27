@@ -9,12 +9,13 @@
 @inject IAnomalyService AnomalyService
 @inject AuthStateService AuthState
 @inject NavigationManager Nav
+@inject IJSRuntime JS
 
 <div class="dashboard">
 
     <div class="dash-header">
         <div>
-            <h1 class="dash-title">Dashboard</h1>
+            <h1 class="dash-title"><i data-lucide="layout-dashboard" class="bi" aria-hidden="true"></i> Dashboard</h1>
             <p class="dash-subtitle">Monthly overview based on the readings entered for each fuel type.</p>
         </div>
         <!-- Month selector -->
@@ -28,14 +29,14 @@
 
     @if (!_loadingMain && _data is null)
     {
-        <div class="dash-empty">⚠️ Could not load data. Please check your connection.</div>
+        <div class="dash-empty"><i data-lucide="alert-triangle" class="bi" aria-hidden="true"></i> Could not load data. Please check your connection.</div>
     }
 
     @if (!_loadingAnomalies && _anomalies?.Anomalies.Count > 0)
     {
         <div class="anomaly-banner">
             <div class="anomaly-banner-header">
-                <span class="anomaly-icon">🚨</span>
+                <span class="anomaly-icon"><i data-lucide="siren" class="bi" aria-hidden="true"></i></span>
                 <strong>Unusual usage detected</strong>
                 <span class="anomaly-count">@_anomalies.Anomalies.Count flagged day(s)</span>
             </div>
@@ -44,7 +45,7 @@
                 {
                     <li>
                         <span class="@(a.FuelType == "Electricity" ? "blue" : "green")">
-                            @(a.FuelType == "Electricity" ? "⚡" : "🔥") @a.FuelType
+                            <i data-lucide="@(a.FuelType == "Electricity" ? "zap" : "flame")" class="bi" aria-hidden="true"></i> @a.FuelType
                         </span>
                         on <strong>@a.Date.ToString("dd MMM")</strong>:
                         <strong>@a.DailyUsage.ToString("N1")</strong> vs avg @a.RollingAverage.ToString("N1")
@@ -63,8 +64,8 @@
         @if (!_data.HasReadings)
         {
             <div class="dash-no-readings">
-                📭 No readings for @(new DateTime(_data.Year, _data.Month, 1).ToString("MMMM yyyy")).
-                <a href="/add-reading">Add a reading →</a>
+                <i data-lucide="inbox" class="bi" aria-hidden="true"></i> No readings for @(new DateTime(_data.Year, _data.Month, 1).ToString("MMMM yyyy")).
+                <a href="/add-reading">Add a reading <i data-lucide="arrow-right" class="bi" aria-hidden="true"></i></a>
             </div>
         }
 
@@ -170,7 +171,7 @@
 
         <!-- Formula Hint -->
         <div class="formula-hint">
-            💡 <em>Formula: usage = latest meter reading − first meter reading for the selected month. Cost = (usage × price per unit) + (standing charge p/day ÷ 100 × days in month).</em>
+            <i data-lucide="lightbulb" class="bi" aria-hidden="true"></i> <em>Formula: usage = latest meter reading − first meter reading for the selected month. Cost = (usage × price per unit) + (standing charge p/day ÷ 100 × days in month).</em>
         </div>
     }
 
@@ -179,19 +180,19 @@
     {
         if (_loadingProjection)
         {
-            <div class="section-loading">⏳ Loading projection…</div>
+            <div class="section-loading"><i data-lucide="loader" class="bi" aria-hidden="true"></i> Loading projection…</div>
         }
         else if (_data is not null && (_electricityProjected > 0 || _gasProjected > 0))
         {
             <div class="projection-widget">
-                <h3 class="widget-title">🔮 Projected End-of-Month Bill</h3>
+                <h3 class="widget-title"><i data-lucide="trending-up" class="bi" aria-hidden="true"></i> Projected End-of-Month Bill</h3>
                 <p class="projection-sub">
                     Based on @_daysElapsed of @_daysInMonth days. Forecast extrapolates current spend across the full month.
                 </p>
                 <div class="projection-grid">
                     <div class="projection-card @GetProjectionClass(_electricityProjected, _data.ElectricityBudget)">
                         <div class="projection-header">
-                            <span class="icon">⚡</span>
+                            <span class="icon"><i data-lucide="zap" class="bi" aria-hidden="true"></i></span>
                             <span>Electricity</span>
                         </div>
                         <div class="projection-value">@_data.CurrencySymbol@_electricityProjected.ToString("N2")</div>
@@ -213,7 +214,7 @@
                     </div>
                     <div class="projection-card @GetProjectionClass(_gasProjected, _data.GasBudget)">
                         <div class="projection-header">
-                            <span class="icon">🔥</span>
+                            <span class="icon"><i data-lucide="flame" class="bi" aria-hidden="true"></i></span>
                             <span>Gas</span>
                         </div>
                         <div class="projection-value">@_data.CurrencySymbol@_gasProjected.ToString("N2")</div>
@@ -241,18 +242,18 @@
     <!-- Budget Summary Widget -->
     @if (_loadingBudgets)
     {
-        <div class="section-loading">⏳ Loading budgets…</div>
+        <div class="section-loading"><i data-lucide="loader" class="bi" aria-hidden="true"></i> Loading budgets…</div>
     }
     else if (_data is not null && _budgetSummaries.Any())
     {
             <div class="budget-widget">
-                <h3 class="widget-title">📊 Budget Summary - @(new DateTime(_data.Year, _data.Month, 1).ToString("MMMM yyyy"))</h3>
+                <h3 class="widget-title"><i data-lucide="bar-chart-3" class="bi" aria-hidden="true"></i> Budget Summary - @(new DateTime(_data.Year, _data.Month, 1).ToString("MMMM yyyy"))</h3>
                 <div class="budget-cards">
                     @foreach (var summary in _budgetSummaries)
                     {
                         <div class="mini-budget-card @(summary.IsOverBudget ? "over" : "")">
                             <div class="mini-header">
-                                <span class="mini-icon">@(summary.FuelType == "Electricity" ? "⚡" : "🔥")</span>
+                                <span class="mini-icon"><i data-lucide="@(summary.FuelType == "Electricity" ? "zap" : "flame")" class="bi" aria-hidden="true"></i></span>
                                 <span class="mini-fuel">@summary.FuelType</span>
                             </div>
                             <div class="mini-progress">
@@ -266,25 +267,25 @@
                         </div>
                     }
                 </div>
-                <a href="/budget-management" class="widget-link">Manage Budgets →</a>
+                <a href="/budget-management" class="widget-link">Manage Budgets <i data-lucide="arrow-right" class="bi" aria-hidden="true"></i></a>
             </div>
         }
 
         <!-- Bill Comparison Widget -->
         @if (_loadingComparison)
         {
-            <div class="section-loading">⏳ Loading comparison…</div>
+            <div class="section-loading"><i data-lucide="loader" class="bi" aria-hidden="true"></i> Loading comparison…</div>
         }
         else if (_data is not null && (_electricityComparison != null || _gasComparison != null))
         {
             <div class="comparison-widget">
-                <h3 class="widget-title">📈 Bill Comparison vs Last Month</h3>
+                <h3 class="widget-title"><i data-lucide="line-chart" class="bi" aria-hidden="true"></i> Bill Comparison vs Last Month</h3>
                 <div class="comparison-grid">
                     @if (_electricityComparison != null)
                     {
                         <div class="comparison-card">
                             <div class="comparison-header">
-                                <span class="icon">⚡</span>
+                                <span class="icon"><i data-lucide="zap" class="bi" aria-hidden="true"></i></span>
                                 <span>Electricity</span>
                             </div>
                             <div class="comparison-amounts">
@@ -304,7 +305,7 @@
                                 }
                                 else
                                 {
-                                    <span>@GetTrendIcon(_electricityComparison.Trend)</span>
+                                    <span><i data-lucide="@GetTrendIcon(_electricityComparison.Trend)" class="bi" aria-hidden="true"></i></span>
                                     <span>@_data.CurrencySymbol@Math.Abs(_electricityComparison.ChangeAmount).ToString("N2")</span>
                                     <span>(@Math.Abs(_electricityComparison.ChangePercentage).ToString("N1")%)</span>
                                 }
@@ -315,7 +316,7 @@
                     {
                         <div class="comparison-card">
                             <div class="comparison-header">
-                                <span class="icon">🔥</span>
+                                <span class="icon"><i data-lucide="flame" class="bi" aria-hidden="true"></i></span>
                                 <span>Gas</span>
                             </div>
                             <div class="comparison-amounts">
@@ -335,7 +336,7 @@
                                 }
                                 else
                                 {
-                                    <span>@GetTrendIcon(_gasComparison.Trend)</span>
+                                    <span><i data-lucide="@GetTrendIcon(_gasComparison.Trend)" class="bi" aria-hidden="true"></i></span>
                                     <span>@_data.CurrencySymbol@Math.Abs(_gasComparison.ChangeAmount).ToString("N2")</span>
                                     <span>(@Math.Abs(_gasComparison.ChangePercentage).ToString("N1")%)</span>
                                 }
@@ -385,6 +386,15 @@
         }
 
         await LoadAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("lucide.createIcons");
+        }
+        catch { /* lucide not yet loaded — silently ignore */ }
     }
 
     private async Task LoadAsync()
@@ -544,8 +554,8 @@
 
     private string GetTrendIcon(string trend) => trend switch
     {
-        "Up" => "↑",
-        "Down" => "↓",
-        _ => "→"
+        "Up" => "arrow-up",
+        "Down" => "arrow-down",
+        _ => "arrow-right"
     };
 }

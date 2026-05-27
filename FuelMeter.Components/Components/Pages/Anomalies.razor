@@ -6,42 +6,46 @@
 @inject IAnomalyService AnomalyService
 @inject AuthStateService AuthState
 @inject NavigationManager Nav
+@inject IJSRuntime JS
 
 <div class="anom-page">
     <div class="anom-header">
-        <h1 class="anom-title">⚠️ Usage Anomalies</h1>
+        <h1 class="anom-title">
+            <i data-lucide="alert-triangle" class="anom-icon"></i>
+            Usage Anomalies
+        </h1>
         <p class="anom-subtitle">
             Days where your daily usage was significantly higher than your rolling 30-day average.
         </p>
     </div>
 
     <div class="anom-controls">
-        <label>
-            Fuel:
-            <select @bind="_fuelType" @bind:after="LoadAsync">
+        <div class="anom-field">
+            <label for="anom-fuel">Fuel</label>
+            <select id="anom-fuel" class="anom-select" @bind="_fuelType" @bind:after="LoadAsync">
                 <option value="">All</option>
                 <option value="Electricity">Electricity</option>
                 <option value="Gas">Gas</option>
             </select>
-        </label>
-        <label>
-            Look back (days):
-            <select @bind="_daysBack" @bind:after="LoadAsync">
+        </div>
+        <div class="anom-field">
+            <label for="anom-days">Look back (days)</label>
+            <select id="anom-days" class="anom-select" @bind="_daysBack" @bind:after="LoadAsync">
                 <option value="30">30</option>
                 <option value="60">60</option>
                 <option value="90">90</option>
                 <option value="180">180</option>
             </select>
-        </label>
-        <label>
-            Threshold % above avg:
-            <select @bind="_threshold" @bind:after="LoadAsync">
+        </div>
+        <div class="anom-field">
+            <label for="anom-threshold">Threshold % above avg</label>
+            <select id="anom-threshold" class="anom-select" @bind="_threshold" @bind:after="LoadAsync">
                 <option value="25">25%</option>
                 <option value="50">50%</option>
                 <option value="75">75%</option>
                 <option value="100">100%</option>
             </select>
-        </label>
+        </div>
     </div>
 
     @if (_loading)
@@ -51,7 +55,7 @@
     else if (_result is null || _result.Anomalies.Count == 0)
     {
         <div class="anom-empty">
-            ✅ No anomalies detected for the selected window. Your usage is consistent.
+            <i data-lucide="check-circle" class="anom-icon"></i> No anomalies detected for the selected window. Your usage is consistent.
         </div>
     }
     else
@@ -81,7 +85,7 @@
                             <td>@a.Date.ToString("ddd, dd MMM yyyy")</td>
                             <td>
                                 <span class="@(a.FuelType == "Electricity" ? "fuel-elec" : "fuel-gas")">
-                                    @(a.FuelType == "Electricity" ? "⚡" : "🔥") @a.FuelType
+                                    <i data-lucide="@(a.FuelType == "Electricity" ? "zap" : "flame")" class="anom-icon"></i> @a.FuelType
                                 </span>
                             </td>
                             <td>@a.DailyUsage.ToString("N2")</td>
@@ -113,6 +117,11 @@
     {
         if (!AuthState.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
         await LoadAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        try { await JS.InvokeVoidAsync("lucide.createIcons"); } catch { }
     }
 
     private async Task LoadAsync()

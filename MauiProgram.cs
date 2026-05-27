@@ -52,7 +52,9 @@ namespace FuelMeter
                 var handler = new HttpClientHandler
                 {
                     ServerCertificateCustomValidationCallback =
-                        HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+                        HttpClientHandler.DangerousAcceptAnyServerCertificateValidator,
+                    AutomaticDecompression =
+                        System.Net.DecompressionMethods.GZip | System.Net.DecompressionMethods.Deflate
                 };
                 var http = new HttpClient(handler) { BaseAddress = new Uri(apiBase) };
 
@@ -60,10 +62,10 @@ namespace FuelMeter
                 http.DefaultRequestHeaders.UserAgent.ParseAdd("FuelMeter-Windows/1.0");
                 http.DefaultRequestHeaders.Accept.Add(
                     new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
-                http.DefaultRequestHeaders.AcceptEncoding.Add(
-                    new System.Net.Http.Headers.StringWithQualityHeaderValue("gzip"));
-                http.DefaultRequestHeaders.AcceptEncoding.Add(
-                    new System.Net.Http.Headers.StringWithQualityHeaderValue("deflate"));
+                // Note: do NOT add Accept-Encoding headers manually — AutomaticDecompression
+                // sets them and transparently decompresses the response. Sending them
+                // manually disables auto-decompression and leaves callers with raw gzip
+                // bytes (starts with 0x1F 0x8B) which breaks JSON parsing.
 
                 return new ApiClientService(http);
             });
@@ -76,6 +78,7 @@ namespace FuelMeter
             builder.Services.AddSingleton<IBudgetService,               HttpBudgetService>();
             builder.Services.AddSingleton<IBillEstimationService,       HttpBillEstimationService>();
             builder.Services.AddSingleton<IAnomalyService,              HttpAnomalyService>();
+            builder.Services.AddSingleton<IExportImportService,         HttpExportImportService>();
 
             // ── Auth state + attach the API client ─────────────────
             builder.Services.AddSingleton<AuthStateService>(sp =>

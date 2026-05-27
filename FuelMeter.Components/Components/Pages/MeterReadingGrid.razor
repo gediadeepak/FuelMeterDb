@@ -6,11 +6,12 @@
 @inject IMeterReadingService MeterService
 @inject AuthStateService AuthState
 @inject NavigationManager Nav
+@inject IJSRuntime JS
 
 <div class="mrg-page">
 
     <div class="mrg-header">
-        <h1 class="mrg-title">Meter Reading Grid</h1>
+        <h1 class="mrg-title"><i data-lucide="table" class="bi" aria-hidden="true"></i> Meter Reading Grid</h1>
         <p class="mrg-subtitle">View daily readings and calculated usage by fuel type.</p>
     </div>
 
@@ -39,14 +40,14 @@
         <!-- Add button -->
         <div class="mrg-toolbar">
             <button class="mrg-btn-add" @onclick='() => Nav.NavigateTo("/add-reading")'>
-                ➕ Add Reading
+                <i data-lucide="plus-circle" class="bi" aria-hidden="true"></i> Add Reading
             </button>
         </div>
 
         <!-- Alert -->
         @if (!string.IsNullOrEmpty(_errorMsg))
         {
-            <div class="mrg-alert mrg-error">⚠️ @_errorMsg</div>
+            <div class="mrg-alert mrg-error"><i data-lucide="alert-triangle" class="bi" aria-hidden="true"></i> @_errorMsg</div>
         }
 
         <!-- Grid -->
@@ -57,7 +58,7 @@
         else if (_rows.Count == 0)
         {
             <div class="mrg-empty">
-                <span>📭</span>
+                <span><i data-lucide="inbox" class="bi" aria-hidden="true"></i></span>
                 <p>No readings found. Add your first meter reading.</p>
             </div>
         }
@@ -95,10 +96,10 @@
                                 <td class="mrg-actions-cell">
                                     <button class="mrg-btn-edit"
                                             @onclick="() => EditRow(row.Id)">
-                                        ✏️
+                                        <i data-lucide="pencil" class="bi" aria-hidden="true"></i>
                                     </button>
                                     <button class="mrg-btn-delete" @onclick="() => ConfirmDelete(row)">
-                                        🗑️
+                                        <i data-lucide="trash-2" class="bi" aria-hidden="true"></i>
                                     </button>
                                 </td>
                             </tr>
@@ -117,7 +118,7 @@
                 <h3>Delete Reading?</h3>
                 <p>@_deleteTarget.ReadingDate.ToString("dd MMM yyyy") — @_deleteTarget.FuelType (@_deleteTarget.CurrentReading)</p>
                 <div class="modal-actions">
-                    <button class="mrg-btn-confirm-delete" @onclick="DoDeleteAsync">🗑️ Delete</button>
+                    <button class="mrg-btn-confirm-delete" @onclick="DoDeleteAsync"><i data-lucide="trash-2" class="bi" aria-hidden="true"></i> Delete</button>
                     <button class="mrg-btn-cancel" @onclick="CancelDelete">Cancel</button>
                 </div>
             </div>
@@ -152,6 +153,11 @@
         }
 
         await LoadAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        try { await JS.InvokeVoidAsync("lucide.createIcons"); } catch { }
     }
 
     private async Task LoadAsync()

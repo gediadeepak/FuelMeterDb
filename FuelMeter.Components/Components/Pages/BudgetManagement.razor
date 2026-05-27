@@ -7,14 +7,15 @@
 @inject IBillEstimationService BillService
 @inject AuthStateService AuthState
 @inject NavigationManager Nav
+@inject IJSRuntime JS
 
 <div class="budget-management">
     <div class="page-header">
         <div>
-            <h1>Budget Management</h1>
+            <h1><i data-lucide="piggy-bank" class="bi" aria-hidden="true"></i> Budget Management</h1>
             <p class="subtitle">Set and track your monthly fuel budgets</p>
         </div>
-        <button class="btn-primary" @onclick="ShowCreateDialog">+ New Budget</button>
+        <button class="btn-primary" @onclick="ShowCreateDialog"><i data-lucide="plus" class="bi" aria-hidden="true"></i> New Budget</button>
     </div>
 
     @if (_loading)
@@ -25,9 +26,9 @@
     {
         <!-- Year Selector -->
         <div class="year-selector">
-            <button class="btn-nav" @onclick="PreviousYear">←</button>
+            <button class="btn-nav" @onclick="PreviousYear"><i data-lucide="chevron-left" class="bi" aria-hidden="true"></i></button>
             <span class="year-display">@_selectedYear</span>
-            <button class="btn-nav" @onclick="NextYear">→</button>
+            <button class="btn-nav" @onclick="NextYear"><i data-lucide="chevron-right" class="bi" aria-hidden="true"></i></button>
         </div>
 
         <!-- Budget Status Cards -->
@@ -36,7 +37,7 @@
             {
                 <div class="budget-card @GetBudgetCardClass(status)">
                     <div class="budget-header">
-                        <span class="fuel-icon">@(status.FuelType == "Electricity" ? "⚡" : "🔥")</span>
+                        <span class="fuel-icon"><i data-lucide="@(status.FuelType == "Electricity" ? "zap" : "flame")" class="bi" aria-hidden="true"></i></span>
                         <span class="fuel-type">@status.FuelType</span>
                         <span class="month-label">@GetMonthName(status.Month)</span>
                     </div>
@@ -68,8 +69,8 @@
                         }
                     </div>
                     <div class="budget-actions">
-                        <button class="btn-edit" @onclick="() => EditBudget(status)">Edit</button>
-                        <button class="btn-delete" @onclick="() => DeleteBudget(status)">Delete</button>
+                        <button class="btn-edit" @onclick="() => EditBudget(status)"><i data-lucide="pencil" class="bi" aria-hidden="true"></i> Edit</button>
+                        <button class="btn-delete" @onclick="() => DeleteBudget(status)"><i data-lucide="trash-2" class="bi" aria-hidden="true"></i> Delete</button>
                     </div>
                 </div>
             }
@@ -78,7 +79,7 @@
         @if (!_monthlyStatuses.Any(s => s.HasBudget))
         {
             <div class="empty-state">
-                <p>📊 No budgets set for @_selectedYear</p>
+                <p><i data-lucide="bar-chart-3" class="bi" aria-hidden="true"></i> No budgets set for @_selectedYear</p>
                 <p>Create your first budget to start tracking your spending</p>
             </div>
         }
@@ -87,7 +88,7 @@
         @if (_overBudgetAlerts.Any())
         {
             <div class="alerts-section">
-                <h2>⚠️ Over Budget Alerts</h2>
+                <h2><i data-lucide="alert-triangle" class="bi" aria-hidden="true"></i> Over Budget Alerts</h2>
                 <div class="alerts-list">
                     @foreach (var alert in _overBudgetAlerts)
                     {
@@ -112,8 +113,8 @@
             <div class="form-group">
                 <label>Fuel Type</label>
                 <select @bind="_dialogBudget.FuelType" disabled="@_isEditing">
-                    <option value="Electricity">⚡ Electricity</option>
-                    <option value="Gas">🔥 Gas</option>
+                    <option value="Electricity">Electricity</option>
+                    <option value="Gas">Gas</option>
                 </select>
             </div>
             <div class="form-group">
@@ -165,6 +166,11 @@
         }
 
         await LoadDataAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        try { await JS.InvokeVoidAsync("lucide.createIcons"); } catch { }
     }
 
     private async Task LoadDataAsync()

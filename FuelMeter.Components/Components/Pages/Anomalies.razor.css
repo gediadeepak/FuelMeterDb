@@ -1,25 +1,38 @@
-.anom-page { display: flex; flex-direction: column; gap: 16px; padding: 16px; }
-.anom-title { font-size: 1.4rem; margin: 0; }
-.anom-subtitle { color: #666; margin: 4px 0 0 0; font-size: .9rem; }
+.anom-page { display: flex; flex-direction: column; gap: 16px; padding: 16px; max-width: 1100px; margin: 0 auto; width: 100%; box-sizing: border-box; }
+.anom-title { font-size: 1.4rem; margin: 0; color: #1976D2; display: flex; align-items: center; gap: 8px; }
+.anom-icon { width: 22px; height: 22px; }
+.anom-icon-sm { width: 16px; height: 16px; vertical-align: middle; }
+.anom-subtitle { color: #666; margin: 4px 0 0; font-size: .9rem; }
 
 .anom-controls {
-    display: flex; flex-wrap: wrap; gap: 12px;
-    background: #fff; padding: 12px; border-radius: 10px;
+    display: grid; gap: 12px; grid-template-columns: 1fr;
+    background: #fff; padding: 14px; border-radius: 12px;
     box-shadow: 0 1px 3px rgba(0,0,0,.06);
 }
-.anom-controls label { font-size: .85rem; color: #444; display: flex; align-items: center; gap: 6px; }
-.anom-controls select { padding: 4px 8px; border-radius: 6px; border: 1px solid #ccc; }
+@media (min-width: 600px) {
+    .anom-controls { grid-template-columns: repeat(3, 1fr); }
+}
+.anom-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.anom-field label { font-size: .8rem; font-weight: 600; color: #666; }
+.anom-select {
+    padding: 10px 12px; border-radius: 8px; border: 1px solid #ccc;
+    background: #fff; font-size: .95rem; width: 100%; box-sizing: border-box;
+    min-height: 44px;
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23666' d='M6 8L0 0h12z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px;
+}
 
 .anom-loading, .anom-empty {
-    background: #fff; padding: 24px; border-radius: 10px; text-align: center; color: #555;
+    background: #fff; padding: 20px; border-radius: 12px; text-align: center; color: #555;
 }
-.anom-empty { background: #E8F8EE; color: #1F6B3A; border: 1px solid #B5E2C5; }
+.anom-empty { background: #E8F8EE; color: #1F6B3A; border: 1px solid #B5E2C5; display: flex; align-items: center; justify-content: center; gap: 8px; }
 
 .anom-summary { font-size: .95rem; color: #444; }
 
-.anom-table-wrap { overflow-x: auto; background: #fff; border-radius: 10px; padding: 4px; }
-.anom-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
-.anom-table th, .anom-table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #eee; }
+.anom-table-wrap { overflow-x: auto; background: #fff; border-radius: 12px; padding: 4px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+.anom-table { width: 100%; border-collapse: collapse; font-size: .9rem; min-width: 560px; }
+.anom-table th, .anom-table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #eee; white-space: nowrap; }
 .anom-table th { background: #fafafa; font-weight: 600; color: #333; }
 
 .fuel-elec { color: #2D6CDF; font-weight: 600; }

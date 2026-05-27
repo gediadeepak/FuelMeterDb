@@ -10,7 +10,10 @@
 
 <div class="scan-page">
     <div class="scan-header">
-        <h1 class="scan-title">📷 Scan Meter</h1>
+        <h1 class="scan-title">
+            <i data-lucide="camera" class="scan-icon-lg"></i>
+            Scan Meter
+        </h1>
         <p class="scan-subtitle">
             Snap a photo of your meter and we'll try to read the number for you.
             You can adjust the value before saving.
@@ -18,29 +21,32 @@
     </div>
 
     <div class="scan-card">
-        <div class="scan-row">
-            <label>
-                Fuel type:
-                <select @bind="_fuelType">
-                    <option value="Electricity">Electricity</option>
-                    <option value="Gas">Gas</option>
+        <div class="scan-fields">
+            <div class="scan-field">
+                <label for="scan-fuel">Fuel type</label>
+                <select id="scan-fuel" class="scan-select" @bind="_fuelType">
+                    <option value="Electricity">⚡ Electricity</option>
+                    <option value="Gas">🔥 Gas</option>
                 </select>
-            </label>
-            <label>
-                Date:
-                <input type="date" @bind="_readingDate" />
-            </label>
+            </div>
+            <div class="scan-field">
+                <label for="scan-date">Date</label>
+                <input id="scan-date" class="scan-input" type="date" @bind="_readingDate" />
+            </div>
         </div>
 
         <div class="scan-capture">
-            <!-- mobile camera capture -->
             <label class="scan-btn scan-btn-primary">
-                📷 Take Photo
-                <InputFile OnChange="OnFileChosen" accept="image/*" capture="environment" class="scan-file" />
+                <i data-lucide="camera" class="scan-icon"></i>
+                <span>Take Photo</span>
+                <InputFile OnChange="OnFileChosen" accept="image/*" capture="environment"
+                           style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:0;color:transparent;" />
             </label>
             <label class="scan-btn">
-                🖼️ Choose Image
-                <InputFile OnChange="OnFileChosen" accept="image/*" class="scan-file" />
+                <i data-lucide="image" class="scan-icon"></i>
+                <span>Choose Image</span>
+                <InputFile OnChange="OnFileChosen" accept="image/*"
+                           style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:0;color:transparent;" />
             </label>
         </div>
 
@@ -53,35 +59,49 @@
 
         @if (_processing)
         {
-            <div class="scan-status">🔍 Reading meter… this may take a few seconds.</div>
+            <div class="scan-status">
+                <i data-lucide="loader" class="scan-icon"></i>
+                <span>Reading meter… this may take a few seconds.</span>
+            </div>
         }
 
         @if (!string.IsNullOrEmpty(_ocrError))
         {
-            <div class="scan-status scan-error">⚠️ @_ocrError</div>
+            <div class="scan-status scan-warn">
+                <i data-lucide="alert-triangle" class="scan-icon"></i>
+                <span>@_ocrError</span>
+            </div>
         }
 
-        <div class="scan-row">
-            <label>
-                Detected reading:
-                <input type="number" step="1" @bind="_readingValue" class="scan-reading-input" />
-            </label>
+        <div class="scan-field">
+            <label for="scan-reading">Detected reading</label>
+            <input id="scan-reading" class="scan-input" type="number" step="1" @bind="_readingValue" />
         </div>
 
         @if (!string.IsNullOrEmpty(_saveMsg))
         {
-            <div class="scan-status @(_saveError ? "scan-error" : "scan-success")">@_saveMsg</div>
+            <div class="scan-status @(_saveError ? "scan-error" : "scan-success")">
+                <i data-lucide="@(_saveError ? "alert-triangle" : "check-circle")" class="scan-icon"></i>
+                <span>@_saveMsg</span>
+            </div>
         }
 
         <div class="scan-actions">
-            <button class="scan-btn scan-btn-primary" @onclick="SaveAsync" disabled="@(_saving || _readingValue <= 0)">
-                @(_saving ? "Saving…" : "💾 Save Reading")
+            <button class="scan-btn scan-btn-primary"
+                    @onclick="SaveAsync"
+                    disabled="@(_saving || _readingValue <= 0)">
+                <i data-lucide="save" class="scan-icon"></i>
+                <span>@(_saving ? "Saving…" : "Save Reading")</span>
             </button>
-            <button class="scan-btn" @onclick="Reset">Clear</button>
+            <button class="scan-btn" @onclick="Reset">
+                <i data-lucide="rotate-ccw" class="scan-icon"></i>
+                <span>Clear</span>
+            </button>
         </div>
 
         <p class="scan-hint">
-            💡 Tip: hold the camera straight, ensure the digits are well-lit,
+            <i data-lucide="lightbulb" class="scan-icon"></i>
+            Tip: hold the camera straight, ensure the digits are well-lit,
             and crop out anything that isn't part of the meter number for best results.
         </p>
     </div>
@@ -103,6 +123,11 @@
         if (!AuthState.IsAuthenticated) Nav.NavigateTo("/login");
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        try { await JS.InvokeVoidAsync("lucide.createIcons"); } catch { }
+    }
+
     private async Task OnFileChosen(InputFileChangeEventArgs e)
     {
         _ocrError = null;
@@ -113,7 +138,6 @@
         try
         {
             var file = e.File;
-            // Cap at ~6 MB and resize to keep OCR responsive
             using var ms = new MemoryStream();
             await using (var stream = file.OpenReadStream(6 * 1024 * 1024))
             {
@@ -122,8 +146,6 @@
             var base64 = Convert.ToBase64String(ms.ToArray());
             _imageDataUrl = $"data:{file.ContentType};base64,{base64}";
 
-            // Call JS-side OCR (Tesseract.js) which must be hosted in wwwroot.
-            // Falls back gracefully if not available.
             try
             {
                 var detected = await JS.InvokeAsync<string?>("fuelMeterOcr.recognizeMeter", _imageDataUrl);
@@ -174,18 +196,18 @@
             var result = await MeterService.SaveAsync(AuthState.CurrentUser!.Id, dto);
             if (result.Success)
             {
-                _saveMsg = "✅ " + result.Message;
+                _saveMsg = result.Message;
                 await Task.Delay(700);
                 Nav.NavigateTo("/meter-readings");
                 return;
             }
             _saveError = true;
-            _saveMsg = "⚠️ " + result.Message;
+            _saveMsg = result.Message;
         }
         catch (Exception ex)
         {
             _saveError = true;
-            _saveMsg = $"⚠️ {ex.Message}";
+            _saveMsg = ex.Message;
         }
         finally
         {

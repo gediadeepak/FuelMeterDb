@@ -6,11 +6,12 @@
 @inject IMeterReadingService MeterService
 @inject AuthStateService AuthState
 @inject NavigationManager Nav
+@inject IJSRuntime JS
 
 <div class="charts-page">
 
     <div class="settings-header">
-        <h1 class="settings-title">Usage Charts</h1>
+        <h1 class="settings-title"><i data-lucide="trending-up" class="bi" aria-hidden="true"></i> Usage Charts</h1>
         <p class="settings-subtitle">Electricity &amp; gas usage and cost visualised over time.</p>
     </div>
 
@@ -66,14 +67,14 @@
     }
     else if (_data is null || _data.Bars.Count == 0)
     {
-        <div class="dash-no-readings">📭 No readings found for this period.</div>
+        <div class="dash-no-readings"><i data-lucide="inbox" class="bi" aria-hidden="true"></i> No readings found for this period.</div>
     }
     else
     {
         <!-- ── Electricity Bar Chart ── -->
         <div class="chart-card chart-card-full">
             <div class="chart-card-header">
-                <span class="chart-card-title blue">⚡ Electricity — @_metric
+                <span class="chart-card-title blue"><i data-lucide="zap" class="bi" aria-hidden="true"></i> Electricity — @_metric
                     @(_metric == "Usage" ? "(kWh)" : $"({_data.CurrencySymbol})")</span>
                 <span class="chart-card-total blue">
                     Total: @(_metric == "Usage"
@@ -87,7 +88,7 @@
         <!-- ── Gas Bar Chart ── -->
         <div class="chart-card chart-card-full">
             <div class="chart-card-header">
-                <span class="chart-card-title green">🔥 Gas — @_metric
+                <span class="chart-card-title green"><i data-lucide="flame" class="bi" aria-hidden="true"></i> Gas — @_metric
                     @(_metric == "Usage" ? "(units)" : $"({_data.CurrencySymbol})")</span>
                 <span class="chart-card-total green">
                     Total: @(_metric == "Usage"
@@ -101,7 +102,7 @@
         <!-- ── Combined table ── -->
         <div class="chart-card chart-card-full">
             <div class="chart-card-header">
-                <span class="chart-card-title">📋 Data Table</span>
+                <span class="chart-card-title"><i data-lucide="clipboard-list" class="bi" aria-hidden="true"></i> Data Table</span>
             </div>
             <div class="chart-table-wrap">
                 <table class="chart-table">
@@ -151,6 +152,11 @@
         }
 
         await LoadAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        try { await JS.InvokeVoidAsync("lucide.createIcons"); } catch { }
     }
 
     private async Task SetView(string v)
