@@ -1,0 +1,24 @@
+name: Deploy API
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy-api:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download API Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: api-build
+          path: ./api-build
+
+      - name: Deploy to Plesk
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ftp.yourdomain.com
+          username: fuelmeter_api
+          password: Y1mz3Fe$WXff7B5K
+          local-dir: ./api-build/
+          server-dir: /httpdocs/
