@@ -8,15 +8,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Download API Artifact
-        uses: dawidd6/action-download-artifact@v6
-        with:
-          workflow: build-fuelmeter.yml
-          name: api-build
-          path: ./api-build
+      - name: Checkout code
+        uses: actions/checkout@v5
 
-      - name: Verify Files
-        run: ls -la ./api-build
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Publish API
+        run: dotnet publish FuelMeter.Api/FuelMeter.Api.csproj -c Release -o ./publish-api
+
+      - name: Verify Published Files
+        run: ls -la ./publish-api
 
       - name: Deploy API to Plesk
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
@@ -24,5 +28,5 @@ jobs:
           server: ftp.shrijiitservices.com
           username: fuelmeter_api
           password: YOUR_PASSWORD
-          local-dir: ./api-build/
+          local-dir: ./publish-api/
           server-dir: /httpdocs/
