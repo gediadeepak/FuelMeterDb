@@ -27,6 +27,6 @@ jobs:
         with:
           server: ftp.shrijiitservices.com
           username: fuelmeter_api
-          password: YOUR_PASSWORD
+          password: Y1mz3Fe$WXff7B5K
           local-dir: ./publish-api/
           server-dir: /httpdocs/
