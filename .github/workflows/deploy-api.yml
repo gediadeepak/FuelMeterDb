@@ -29,4 +29,4 @@ jobs:
           username: fuelmeter_api
           password: Y1mz3Fe$WXff7B5K
           local-dir: ./publish-api/
-          server-dir: /httpdocs/
+          server-dir: /
