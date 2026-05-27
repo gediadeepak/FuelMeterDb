@@ -8,18 +8,21 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Download API Artifact from Build Workflow
+      - name: Download API Artifact
         uses: dawidd6/action-download-artifact@v6
         with:
-          workflow: build.yml
+          workflow: build-fuelmeter.yml
           name: api-build
           path: ./api-build
 
-      - name: Deploy to Plesk
+      - name: Verify Files
+        run: ls -la ./api-build
+
+      - name: Deploy API to Plesk
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ftp.shrijiitservices.com
           username: fuelmeter_api
-          password: YOUR_PASSWORD_HERE
+          password: YOUR_PASSWORD
           local-dir: ./api-build/
           server-dir: /httpdocs/
