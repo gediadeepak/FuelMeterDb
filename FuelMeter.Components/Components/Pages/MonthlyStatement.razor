@@ -1,0 +1,145 @@
+@page "/monthly-statement"
+@using FuelMeter.Core.DTOs
+@using FuelMeter.Core.Services
+@using FuelMeter.Core.Services.Interfaces
+@layout MainLayout
+@inject IMeterReadingService MeterService
+@inject IBillEstimationService BillService
+@inject AuthStateService AuthState
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<div class="stmt-page">
+    <div class="stmt-header">
+        <h1 class="stmt-title">📄 Monthly Statement</h1>
+        <p class="stmt-subtitle">Generate a PDF statement for tax, landlord, or dispute purposes.</p>
+    </div>
+
+    <div class="stmt-card">
+        <div class="stmt-row">
+            <label>
+                Month:
+                <select @bind="_selectedMonth">
+                    @foreach (var m in _monthOptions)
+                    {
+                        <option value="@m.Value">@m.Label</option>
+                    }
+                </select>
+            </label>
+
+            <button class="stmt-btn" @onclick="LoadAsync" disabled="@_loading">
+                @(_loading ? "Loading…" : "Preview")
+            </button>
+            <button class="stmt-btn stmt-btn-primary" @onclick="DownloadPdfAsync" disabled="@(_data is null)">
+                ⬇️ Download PDF
+            </button>
+            <button class="stmt-btn" @onclick="PrintAsync" disabled="@(_data is null)">
+                🖨️ Print
+            </button>
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="stmt-loading">Loading statement…</div>
+    }
+    else if (_data is not null)
+    {
+        <div id="statement-print" class="stmt-doc">
+            <div class="stmt-doc-header">
+                <h2>FuelMeter Monthly Statement</h2>
+                <div class="stmt-meta">
+                    <div><strong>Account:</strong> @AuthState.CurrentUser?.FullName</div>
+                    <div><strong>Email:</strong> @AuthState.CurrentUser?.Email</div>
+                    <div><strong>Period:</strong> @_periodLabel</div>
+                    <div><strong>Generated:</strong> @DateTime.Now.ToString("dd MMM yyyy HH:mm")</div>
+                </div>
+            </div>
+
+            <h3>Summary</h3>
+            <table class="stmt-table">
+                <thead>
+                    <tr><th>Fuel</th><th>Units Used</th><th>Estimated Cost</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>⚡ Electricity</td>
+                        <td>@_data.ElectricityUsage.ToString("N2")</td>
+                        <td>@_data.ElectricityCost.ToString("C")</td>
+                    </tr>
+                    <tr>
+                        <td>🔥 Gas</td>
+                        <td>@_data.GasUsage.ToString("N2")</td>
+                        <td>@_data.GasCost.ToString("C")</td>
+                    </tr>
+                    <tr class="stmt-total">
+                        <td><strong>Total</strong></td>
+                        <td></td>
+                        <td><strong>@((_data.ElectricityCost + _data.GasCost).ToString("C"))</strong></td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <p class="stmt-disclaimer">
+                This statement is an estimate generated from meter readings recorded in FuelMeter
+                and the user-provided tariff. Always confirm with your supplier's official bill.
+            </p>
+        </div>
+    }
+    else if (_error)
+    {
+        <div class="stmt-empty">⚠️ Could not load statement data for the selected month.</div>
+    }
+</div>
+
+@code {
+    private record MonthOption(string Value, string Label);
+
+    private List<MonthOption> _monthOptions = Enumerable
+        .Range(0, 12)
+        .Select(i => DateTime.Today.AddMonths(-i))
+        .Select(d => new MonthOption(d.ToString("yyyy-MM"), d.ToString("MMMM yyyy")))
+        .ToList();
+
+    private string _selectedMonth = DateTime.Today.ToString("yyyy-MM");
+    private DashboardDto? _data;
+    private bool _loading;
+    private bool _error;
+    private string _periodLabel = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthState.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        if (!DateTime.TryParse(_selectedMonth + "-01", out var parsed)) return;
+
+        _loading = true;
+        _error = false;
+        _data = null;
+        StateHasChanged();
+
+        try
+        {
+            _data = await MeterService.GetDashboardAsync(
+                AuthState.CurrentUser!.Id, parsed.Year, parsed.Month);
+            _periodLabel = parsed.ToString("MMMM yyyy");
+        }
+        catch { _error = true; }
+        finally { _loading = false; }
+    }
+
+    private async Task PrintAsync()
+    {
+        await JS.InvokeVoidAsync("fuelMeterStatement.print", "statement-print");
+    }
+
+    private async Task DownloadPdfAsync()
+    {
+        await JS.InvokeVoidAsync("fuelMeterStatement.downloadPdf", "statement-print",
+            $"FuelMeter-Statement-{_selectedMonth}.pdf");
+    }
+}

@@ -38,6 +38,7 @@ builder.Services.AddScoped<INotificationSettingsService, HttpNotificationSetting
 builder.Services.AddScoped<IBudgetService,               HttpBudgetService>();
 builder.Services.AddScoped<IBillEstimationService,       HttpBillEstimationService>();
 builder.Services.AddScoped<IExportImportService,         HttpExportImportService>();
+builder.Services.AddScoped<IAnomalyService,              HttpAnomalyService>();
 
 // ── Auth state (per Blazor Server circuit) ────────────────────────────────────
 builder.Services.AddScoped<AuthStateService>();

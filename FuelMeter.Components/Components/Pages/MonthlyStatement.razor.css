@@ -1,0 +1,36 @@
+.stmt-page { display: flex; flex-direction: column; gap: 16px; padding: 16px; }
+.stmt-title { font-size: 1.4rem; margin: 0; }
+.stmt-subtitle { color: #666; margin: 4px 0 0; font-size: .9rem; }
+
+.stmt-card {
+    background: #fff; padding: 14px; border-radius: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.06);
+}
+.stmt-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.stmt-row label { display: flex; align-items: center; gap: 6px; font-size: .9rem; }
+.stmt-row select { padding: 4px 8px; border-radius: 6px; border: 1px solid #ccc; }
+
+.stmt-btn {
+    background: #f1f3f5; border: 1px solid #d6d6d6; padding: 8px 14px;
+    border-radius: 8px; cursor: pointer; font-size: .9rem;
+}
+.stmt-btn:disabled { opacity: .6; cursor: not-allowed; }
+.stmt-btn-primary { background: #2D6CDF; color: #fff; border-color: #2D6CDF; }
+
+.stmt-loading, .stmt-empty {
+    background: #fff; padding: 20px; border-radius: 10px; text-align: center; color: #555;
+}
+
+.stmt-doc {
+    background: #fff; padding: 28px; border-radius: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.06); color: #222;
+}
+.stmt-doc-header h2 { margin: 0 0 8px; }
+.stmt-meta { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 4px 16px; margin-bottom: 16px; font-size: .9rem; }
+
+.stmt-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+.stmt-table th, .stmt-table td { padding: 10px 12px; border-bottom: 1px solid #e5e5e5; text-align: left; }
+.stmt-table th { background: #fafafa; }
+.stmt-total td { border-top: 2px solid #333; }
+
+.stmt-disclaimer { margin-top: 18px; font-size: .8rem; color: #777; font-style: italic; }

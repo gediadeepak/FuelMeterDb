@@ -6,6 +6,7 @@
 @inject IMeterReadingService MeterService
 @inject IBudgetService BudgetService
 @inject IBillEstimationService BillService
+@inject IAnomalyService AnomalyService
 @inject AuthStateService AuthState
 @inject NavigationManager Nav
 
@@ -25,15 +26,39 @@
         </select>
     </div>
 
-    @if (_loading)
-    {
-        <div class="dash-loading">Loading…</div>
-    }
-    else if (_data is null)
+    @if (!_loadingMain && _data is null)
     {
         <div class="dash-empty">⚠️ Could not load data. Please check your connection.</div>
     }
-    else
+
+    @if (!_loadingAnomalies && _anomalies?.Anomalies.Count > 0)
+    {
+        <div class="anomaly-banner">
+            <div class="anomaly-banner-header">
+                <span class="anomaly-icon">🚨</span>
+                <strong>Unusual usage detected</strong>
+                <span class="anomaly-count">@_anomalies.Anomalies.Count flagged day(s)</span>
+            </div>
+            <ul class="anomaly-list">
+                @foreach (var a in _anomalies.Anomalies.Take(3))
+                {
+                    <li>
+                        <span class="@(a.FuelType == "Electricity" ? "blue" : "green")">
+                            @(a.FuelType == "Electricity" ? "⚡" : "🔥") @a.FuelType
+                        </span>
+                        on <strong>@a.Date.ToString("dd MMM")</strong>:
+                        <strong>@a.DailyUsage.ToString("N1")</strong> vs avg @a.RollingAverage.ToString("N1")
+                        <span class="@(a.Severity == "High" ? "anomaly-high" : "anomaly-warn")">
+                            (+@a.PercentAboveAverage.ToString("N0")%)
+                        </span>
+                    </li>
+                }
+            </ul>
+            <a href="/anomalies" class="anomaly-link">View all anomalies →</a>
+        </div>
+    }
+
+    @if (_data is not null)
     {
         @if (!_data.HasReadings)
         {
@@ -147,9 +172,16 @@
         <div class="formula-hint">
             💡 <em>Formula: usage = latest meter reading − first meter reading for the selected month. Cost = (usage × price per unit) + (standing charge p/day ÷ 100 × days in month).</em>
         </div>
+    }
 
-        <!-- Projected End-of-Month Bill -->
-        @if (_projectionAvailable && (_electricityProjected > 0 || _gasProjected > 0))
+    <!-- Projected End-of-Month Bill -->
+    @if (_projectionAvailable)
+    {
+        if (_loadingProjection)
+        {
+            <div class="section-loading">⏳ Loading projection…</div>
+        }
+        else if (_data is not null && (_electricityProjected > 0 || _gasProjected > 0))
         {
             <div class="projection-widget">
                 <h3 class="widget-title">🔮 Projected End-of-Month Bill</h3>
@@ -204,10 +236,15 @@
                 </div>
             </div>
         }
+    }
 
-        <!-- Budget Summary Widget -->
-        @if (_budgetSummaries.Any())
-        {
+    <!-- Budget Summary Widget -->
+    @if (_loadingBudgets)
+    {
+        <div class="section-loading">⏳ Loading budgets…</div>
+    }
+    else if (_data is not null && _budgetSummaries.Any())
+    {
             <div class="budget-widget">
                 <h3 class="widget-title">📊 Budget Summary - @(new DateTime(_data.Year, _data.Month, 1).ToString("MMMM yyyy"))</h3>
                 <div class="budget-cards">
@@ -234,7 +271,11 @@
         }
 
         <!-- Bill Comparison Widget -->
-        @if (_electricityComparison != null || _gasComparison != null)
+        @if (_loadingComparison)
+        {
+            <div class="section-loading">⏳ Loading comparison…</div>
+        }
+        else if (_data is not null && (_electricityComparison != null || _gasComparison != null))
         {
             <div class="comparison-widget">
                 <h3 class="widget-title">📈 Bill Comparison vs Last Month</h3>
@@ -304,13 +345,17 @@
                 </div>
             </div>
         }
-    }
 
 </div>
 
 @code {
     private DashboardDto? _data;
-    private bool _loading = true;
+    private bool _loadingMain = true;
+    private bool _loadingBudgets;
+    private bool _loadingComparison;
+    private bool _loadingProjection;
+    private bool _loadingAnomalies;
+    private AnomalyResultDto? _anomalies;
     private string _selectedMonth = DateTime.Today.ToString("yyyy-MM");
     private List<BudgetSummaryDto> _budgetSummaries = new();
     private BillComparisonDto? _electricityComparison;
@@ -345,60 +390,122 @@
     private async Task LoadAsync()
     {
         if (!AuthState.IsAuthenticated) return;
-        _loading = true;
+        if (!DateTime.TryParse(_selectedMonth + "-01", out var parsed)) return;
 
+        var userId = AuthState.CurrentUser!.Id;
+        var today = DateTime.Today;
+
+        // Reset all section states
+        _loadingMain = true;
+        _loadingBudgets = true;
+        _loadingComparison = true;
+        _loadingAnomalies = true;
+        _anomalies = null;
+        _projectionAvailable = parsed.Year == today.Year && parsed.Month == today.Month;
+        _loadingProjection = _projectionAvailable;
+        _data = null;
+        _budgetSummaries = new List<BudgetSummaryDto>();
+        _electricityComparison = null;
+        _gasComparison = null;
+        _electricityProjected = 0;
+        _gasProjected = 0;
+        if (_projectionAvailable)
+        {
+            _daysInMonth = DateTime.DaysInMonth(parsed.Year, parsed.Month);
+            _daysElapsed = Math.Min(today.Day, _daysInMonth);
+        }
+        StateHasChanged();
+
+        // Kick off each section independently and update UI as each one completes
+        var mainTask = LoadMainAsync(userId, parsed.Year, parsed.Month);
+        var budgetsTask = LoadBudgetsAsync(userId, parsed.Year, parsed.Month);
+        var comparisonTask = LoadComparisonAsync(userId, parsed.Year, parsed.Month);
+        var projectionTask = _projectionAvailable
+            ? LoadProjectionAsync(userId, parsed.Year, parsed.Month)
+            : Task.CompletedTask;
+        var anomaliesTask = LoadAnomaliesAsync(userId);
+
+        await Task.WhenAll(mainTask, budgetsTask, comparisonTask, projectionTask, anomaliesTask);
+    }
+
+    private async Task LoadAnomaliesAsync(int userId)
+    {
+        try { _anomalies = await AnomalyService.DetectAnomaliesAsync(userId); }
+        catch { _anomalies = null; }
+        finally
+        {
+            _loadingAnomalies = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task LoadMainAsync(int userId, int year, int month)
+    {
+        try { _data = await MeterService.GetDashboardAsync(userId, year, month); }
+        catch { _data = null; }
+        finally
+        {
+            _loadingMain = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task LoadBudgetsAsync(int userId, int year, int month)
+    {
         try
         {
-            if (DateTime.TryParse(_selectedMonth + "-01", out var parsed))
+            var list = new List<BudgetSummaryDto>();
+            try
             {
-                var userId = AuthState.CurrentUser!.Id;
-
-                // Load existing dashboard data
-                try
-                {
-                    _data = await MeterService.GetDashboardAsync(userId, parsed.Year, parsed.Month);
-                }
-                catch { _data = null; }
-
-                // Load budget summaries (independent — a missing budget should not break the dashboard)
-                _budgetSummaries = new List<BudgetSummaryDto>();
-                try
-                {
-                    var electricityBudget = await BudgetService.GetBudgetSummaryAsync(userId, "Electricity", parsed.Year, parsed.Month);
-                    if (electricityBudget != null) _budgetSummaries.Add(electricityBudget);
-                }
-                catch { }
-                try
-                {
-                    var gasBudget = await BudgetService.GetBudgetSummaryAsync(userId, "Gas", parsed.Year, parsed.Month);
-                    if (gasBudget != null) _budgetSummaries.Add(gasBudget);
-                }
-                catch { }
-
-                // Load bill comparisons (independent)
-                try { _electricityComparison = await BillService.CompareBillsAsync(userId, "Electricity", parsed.Year, parsed.Month); }
-                catch { _electricityComparison = null; }
-                try { _gasComparison = await BillService.CompareBillsAsync(userId, "Gas", parsed.Year, parsed.Month); }
-                catch { _gasComparison = null; }
-
-                // Bill projection — only relevant for the current month (not past months)
-                var today = DateTime.Today;
-                _projectionAvailable = parsed.Year == today.Year && parsed.Month == today.Month;
-                _electricityProjected = 0;
-                _gasProjected = 0;
-                if (_projectionAvailable)
-                {
-                    _daysInMonth = DateTime.DaysInMonth(parsed.Year, parsed.Month);
-                    _daysElapsed = Math.Min(today.Day, _daysInMonth);
-
-                    try { _electricityProjected = await BillService.ProjectMonthlyBillAsync(userId, "Electricity", parsed.Year, parsed.Month); }
-                    catch { _electricityProjected = 0; }
-                    try { _gasProjected = await BillService.ProjectMonthlyBillAsync(userId, "Gas", parsed.Year, parsed.Month); }
-                    catch { _gasProjected = 0; }
-                }
+                var elec = await BudgetService.GetBudgetSummaryAsync(userId, "Electricity", year, month);
+                if (elec != null) list.Add(elec);
             }
+            catch { }
+            try
+            {
+                var gas = await BudgetService.GetBudgetSummaryAsync(userId, "Gas", year, month);
+                if (gas != null) list.Add(gas);
+            }
+            catch { }
+            _budgetSummaries = list;
         }
-        finally { _loading = false; }
+        finally
+        {
+            _loadingBudgets = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task LoadComparisonAsync(int userId, int year, int month)
+    {
+        try
+        {
+            try { _electricityComparison = await BillService.CompareBillsAsync(userId, "Electricity", year, month); }
+            catch { _electricityComparison = null; }
+            try { _gasComparison = await BillService.CompareBillsAsync(userId, "Gas", year, month); }
+            catch { _gasComparison = null; }
+        }
+        finally
+        {
+            _loadingComparison = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task LoadProjectionAsync(int userId, int year, int month)
+    {
+        try
+        {
+            try { _electricityProjected = await BillService.ProjectMonthlyBillAsync(userId, "Electricity", year, month); }
+            catch { _electricityProjected = 0; }
+            try { _gasProjected = await BillService.ProjectMonthlyBillAsync(userId, "Gas", year, month); }
+            catch { _gasProjected = 0; }
+        }
+        finally
+        {
+            _loadingProjection = false;
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private string GetProjectionClass(decimal projected, decimal budget)

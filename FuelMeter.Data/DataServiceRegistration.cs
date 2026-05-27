@@ -32,6 +32,7 @@ public static class DataServiceRegistration
         services.AddScoped<IBudgetService, BudgetService>();
         services.AddScoped<IExportImportService, ExportImportService>();
         services.AddScoped<IBillEstimationService, BillEstimationService>();
+        services.AddScoped<IAnomalyService, AnomalyService>();
         services.AddScoped<IEmailService, SmtpEmailService>();
         services.Configure<EmailSettings>(opts =>
         {

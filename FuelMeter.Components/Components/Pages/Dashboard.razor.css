@@ -1,5 +1,24 @@
 .dashboard { display: flex; flex-direction: column; gap: 20px; }
 
+/* Anomaly banner */
+.anomaly-banner {
+    background: linear-gradient(135deg, #FFF4E5 0%, #FFEBD0 100%);
+    border: 1px solid #F5A623;
+    border-left: 4px solid #E07900;
+    border-radius: 12px;
+    padding: 14px 16px;
+    color: #5A3A00;
+}
+.anomaly-banner-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.anomaly-icon { font-size: 1.2rem; }
+.anomaly-count { margin-left: auto; font-size: .82rem; color: #8A5A00; }
+.anomaly-list { list-style: none; padding: 0; margin: 0 0 6px 0; font-size: .9rem; }
+.anomaly-list li { padding: 3px 0; }
+.anomaly-warn { color: #C47A00; font-weight: 600; }
+.anomaly-high { color: #C0392B; font-weight: 700; }
+.anomaly-link { font-size: .85rem; color: #8A5A00; text-decoration: none; font-weight: 600; }
+.anomaly-link:hover { text-decoration: underline; }
+
 /* Header */
 .dash-header {
     display: flex;
@@ -22,6 +41,16 @@
     outline: none;
     cursor: pointer;
     flex-shrink: 0;
+}
+
+.section-loading {
+    text-align: center;
+    padding: 18px;
+    color: var(--fm-muted);
+    font-size: .9rem;
+    background: var(--fm-card);
+    border: 1px dashed var(--fm-border);
+    border-radius: 12px;
 }
 
 .dash-loading {

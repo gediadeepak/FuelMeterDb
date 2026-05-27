@@ -1,0 +1,204 @@
+@page "/scan-meter"
+@using FuelMeter.Core.DTOs
+@using FuelMeter.Core.Services
+@using FuelMeter.Core.Services.Interfaces
+@layout MainLayout
+@inject IMeterReadingService MeterService
+@inject AuthStateService AuthState
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<div class="scan-page">
+    <div class="scan-header">
+        <h1 class="scan-title">📷 Scan Meter</h1>
+        <p class="scan-subtitle">
+            Snap a photo of your meter and we'll try to read the number for you.
+            You can adjust the value before saving.
+        </p>
+    </div>
+
+    <div class="scan-card">
+        <div class="scan-row">
+            <label>
+                Fuel type:
+                <select @bind="_fuelType">
+                    <option value="Electricity">Electricity</option>
+                    <option value="Gas">Gas</option>
+                </select>
+            </label>
+            <label>
+                Date:
+                <input type="date" @bind="_readingDate" />
+            </label>
+        </div>
+
+        <div class="scan-capture">
+            <!-- mobile camera capture -->
+            <label class="scan-btn scan-btn-primary">
+                📷 Take Photo
+                <InputFile OnChange="OnFileChosen" accept="image/*" capture="environment" class="scan-file" />
+            </label>
+            <label class="scan-btn">
+                🖼️ Choose Image
+                <InputFile OnChange="OnFileChosen" accept="image/*" class="scan-file" />
+            </label>
+        </div>
+
+        @if (!string.IsNullOrEmpty(_imageDataUrl))
+        {
+            <div class="scan-preview">
+                <img src="@_imageDataUrl" alt="Meter photo" />
+            </div>
+        }
+
+        @if (_processing)
+        {
+            <div class="scan-status">🔍 Reading meter… this may take a few seconds.</div>
+        }
+
+        @if (!string.IsNullOrEmpty(_ocrError))
+        {
+            <div class="scan-status scan-error">⚠️ @_ocrError</div>
+        }
+
+        <div class="scan-row">
+            <label>
+                Detected reading:
+                <input type="number" step="1" @bind="_readingValue" class="scan-reading-input" />
+            </label>
+        </div>
+
+        @if (!string.IsNullOrEmpty(_saveMsg))
+        {
+            <div class="scan-status @(_saveError ? "scan-error" : "scan-success")">@_saveMsg</div>
+        }
+
+        <div class="scan-actions">
+            <button class="scan-btn scan-btn-primary" @onclick="SaveAsync" disabled="@(_saving || _readingValue <= 0)">
+                @(_saving ? "Saving…" : "💾 Save Reading")
+            </button>
+            <button class="scan-btn" @onclick="Reset">Clear</button>
+        </div>
+
+        <p class="scan-hint">
+            💡 Tip: hold the camera straight, ensure the digits are well-lit,
+            and crop out anything that isn't part of the meter number for best results.
+        </p>
+    </div>
+</div>
+
+@code {
+    private string _fuelType = "Electricity";
+    private DateTime _readingDate = DateTime.Today;
+    private decimal _readingValue;
+    private string? _imageDataUrl;
+    private bool _processing;
+    private bool _saving;
+    private bool _saveError;
+    private string _saveMsg = "";
+    private string? _ocrError;
+
+    protected override void OnInitialized()
+    {
+        if (!AuthState.IsAuthenticated) Nav.NavigateTo("/login");
+    }
+
+    private async Task OnFileChosen(InputFileChangeEventArgs e)
+    {
+        _ocrError = null;
+        _saveMsg = "";
+        _processing = true;
+        StateHasChanged();
+
+        try
+        {
+            var file = e.File;
+            // Cap at ~6 MB and resize to keep OCR responsive
+            using var ms = new MemoryStream();
+            await using (var stream = file.OpenReadStream(6 * 1024 * 1024))
+            {
+                await stream.CopyToAsync(ms);
+            }
+            var base64 = Convert.ToBase64String(ms.ToArray());
+            _imageDataUrl = $"data:{file.ContentType};base64,{base64}";
+
+            // Call JS-side OCR (Tesseract.js) which must be hosted in wwwroot.
+            // Falls back gracefully if not available.
+            try
+            {
+                var detected = await JS.InvokeAsync<string?>("fuelMeterOcr.recognizeMeter", _imageDataUrl);
+                if (!string.IsNullOrWhiteSpace(detected)
+                    && decimal.TryParse(new string(detected.Where(char.IsDigit).ToArray()),
+                                        out var parsed))
+                {
+                    _readingValue = parsed;
+                }
+                else
+                {
+                    _ocrError = "Could not read the meter automatically. Please type the value.";
+                }
+            }
+            catch
+            {
+                _ocrError = "OCR engine unavailable. Please type the value manually.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _ocrError = $"Image error: {ex.Message}";
+        }
+        finally
+        {
+            _processing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        _saveMsg = "";
+        _saveError = false;
+        StateHasChanged();
+
+        var dto = new MeterReadingDto
+        {
+            FuelType = _fuelType,
+            ReadingDate = _readingDate,
+            ReadingValue = _readingValue,
+            Notes = "Scanned via camera"
+        };
+
+        try
+        {
+            var result = await MeterService.SaveAsync(AuthState.CurrentUser!.Id, dto);
+            if (result.Success)
+            {
+                _saveMsg = "✅ " + result.Message;
+                await Task.Delay(700);
+                Nav.NavigateTo("/meter-readings");
+                return;
+            }
+            _saveError = true;
+            _saveMsg = "⚠️ " + result.Message;
+        }
+        catch (Exception ex)
+        {
+            _saveError = true;
+            _saveMsg = $"⚠️ {ex.Message}";
+        }
+        finally
+        {
+            _saving = false;
+            StateHasChanged();
+        }
+    }
+
+    private void Reset()
+    {
+        _imageDataUrl = null;
+        _readingValue = 0;
+        _ocrError = null;
+        _saveMsg = "";
+    }
+}

@@ -62,6 +62,26 @@
                     <i data-lucide="bell" class="drawer-icon"></i> Notifications
                 </NavLink>
             </li>
+            <li>
+                <NavLink href="/anomalies" class="drawer-link" ActiveClass="drawer-link-active" @onclick="CloseDrawer">
+                    <i data-lucide="alert-triangle" class="drawer-icon"></i> Anomaly Alerts
+                </NavLink>
+            </li>
+            <li>
+                <NavLink href="/monthly-statement" class="drawer-link" ActiveClass="drawer-link-active" @onclick="CloseDrawer">
+                    <i data-lucide="file-text" class="drawer-icon"></i> Monthly Statement (PDF)
+                </NavLink>
+            </li>
+            <li>
+                <NavLink href="/scan-meter" class="drawer-link" ActiveClass="drawer-link-active" @onclick="CloseDrawer">
+                    <i data-lucide="camera" class="drawer-icon"></i> Scan Meter
+                </NavLink>
+            </li>
+            <li>
+                <NavLink href="/export-import" class="drawer-link" ActiveClass="drawer-link-active" @onclick="CloseDrawer">
+                    <i data-lucide="database-backup" class="drawer-icon"></i> Import / Export
+                </NavLink>
+            </li>
         </ul>
 
         <div class="drawer-footer">

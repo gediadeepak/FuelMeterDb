@@ -75,6 +75,7 @@ namespace FuelMeter
             builder.Services.AddSingleton<INotificationSettingsService, HttpNotificationSettingsService>();
             builder.Services.AddSingleton<IBudgetService,               HttpBudgetService>();
             builder.Services.AddSingleton<IBillEstimationService,       HttpBillEstimationService>();
+            builder.Services.AddSingleton<IAnomalyService,              HttpAnomalyService>();
 
             // ── Auth state + attach the API client ─────────────────
             builder.Services.AddSingleton<AuthStateService>(sp =>
