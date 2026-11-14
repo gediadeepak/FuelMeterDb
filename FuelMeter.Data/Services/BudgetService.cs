@@ -218,44 +218,8 @@ public class BudgetService : IBudgetService
 
     private async Task<decimal> CalculateActualSpentAsync(int userId, string fuelType, int year, int month)
     {
-        var startDate = new DateTime(year, month, 1);
-        var endDate = startDate.AddMonths(1).AddDays(-1);
-
-        var readings = await _context.MeterReadings
-            .Where(r => r.UserId == userId && r.FuelType == fuelType)
-            .Where(r => r.ReadingDate >= startDate && r.ReadingDate <= endDate)
-            .OrderBy(r => r.ReadingDate)
-            .ToListAsync();
-
-        if (readings.Count < 2)
-            return 0;
-
-        var startReading = readings.First().ReadingValue;
-        var endReading = readings.Last().ReadingValue;
-        var unitsConsumed = endReading - startReading;
-
-        if (unitsConsumed < 0)
-            return 0;
-
-        var settings = await _settingsService.GetSettingsAsync(userId);
-        if (settings == null)
-            return 0;
-
-        decimal unitRate = fuelType == "Electricity"
-            ? settings.ElectricityPricePerKwh
-            : settings.GasPricePerUnit;
-
-        decimal standingCharge = fuelType == "Electricity"
-            ? settings.ElectricityStandingCharge
-            : settings.GasStandingCharge;
-
-        var daysInMonth = DateTime.DaysInMonth(year, month);
-        var unitsCost = unitsConsumed * unitRate;
-        // Standing charge is stored as pence/day — convert to currency units to match
-        // the Dashboard formula: (standingCharge p/day ÷ 100) × days in month.
-        var standingChargeCost = standingCharge / 100m * daysInMonth;
-
-        return unitsCost + standingChargeCost;
+        var dashboard = await _meterReadingService.GetDashboardAsync(userId, year, month);
+        return fuelType == "Electricity" ? dashboard.ElectricityCost : dashboard.GasCost;
     }
 
     private static BudgetDto MapToDto(Budget budget)

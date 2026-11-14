@@ -1,4 +1,4 @@
-﻿@namespace FuelMeter.Components.Components.Layout
+@namespace FuelMeter.Components.Components.Layout
 @inherits LayoutComponentBase
 @using FuelMeter.Core.Services
 @inject AuthStateService AuthState
@@ -85,6 +85,7 @@
         </ul>
 
         <div class="drawer-footer">
+            <a href="_content/FuelMeter.Components/privacy-policy.html" class="drawer-link" data-enhance-nav="false">Privacy Policy</a>
             <button class="drawer-logout" @onclick="Logout">
                 <i data-lucide="log-out" class="drawer-icon"></i> Sign Out
             </button>
@@ -121,9 +122,9 @@
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
     private void CloseDrawer()  => _drawerOpen = false;
 
-    private void Logout()
+    private async Task Logout()
     {
-        AuthState.ClearUser();
+        await AuthState.SignOutAsync();
         CloseDrawer();
         Nav.NavigateTo("/login");
     }

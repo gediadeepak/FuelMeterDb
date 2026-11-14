@@ -1,6 +1,7 @@
+using FuelMeter.Api.Extensions;
 using FuelMeter.Api.Services;
 using FuelMeter.Core.DTOs;
-using FuelMeter.Core.Services.Interfaces;
+using FuelMeter.Data.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -10,7 +11,7 @@ namespace FuelMeter.Api.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]
-public class AuthController(IAuthService authService, JwtTokenService jwtService) : ControllerBase
+public class AuthController(AuthService authService, JwtTokenService jwtService) : ControllerBase
 {
     /// <summary>Register a new user account.</summary>
     [AllowAnonymous]
@@ -23,7 +24,7 @@ public class AuthController(IAuthService authService, JwtTokenService jwtService
         if (!result.Success) return BadRequest(result);
 
         if (result.User is not null)
-            result.Token = jwtService.CreateToken(result.User);
+            (result.Token, result.ExpiresAt) = jwtService.CreateToken(result.User);
 
         return Ok(result);
     }
@@ -39,7 +40,7 @@ public class AuthController(IAuthService authService, JwtTokenService jwtService
         if (!result.Success) return Unauthorized(result);
 
         if (result.User is not null)
-            result.Token = jwtService.CreateToken(result.User);
+            (result.Token, result.ExpiresAt) = jwtService.CreateToken(result.User, request.StaySignedIn);
 
         return Ok(result);
     }
@@ -64,5 +65,16 @@ public class AuthController(IAuthService authService, JwtTokenService jwtService
         var result = await authService.ResetPasswordAsync(request.Token, request.NewPassword);
         if (!result.Success) return BadRequest(result);
         return Ok(result);
+    }
+
+    /// <summary>Permanently delete the authenticated user's account and associated records.</summary>
+    [Authorize]
+    [HttpPost("delete-account")]
+    [ProducesResponseType(typeof(AuthResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<AuthResult>> DeleteAccount(
+        [FromBody] DeleteAccountRequest request, CancellationToken cancellationToken)
+    {
+        return Ok(await authService.DeleteAccountAsync(User.GetUserId(), request, cancellationToken));
     }
 }

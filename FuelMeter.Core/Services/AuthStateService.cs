@@ -8,7 +8,7 @@ namespace FuelMeter.Core.Services;
 /// Holds the currently logged-in user and their JWT bearer token.
 /// When an IApiClientService is provided the token is forwarded automatically.
 /// </summary>
-public class AuthStateService
+public class AuthStateService(IRememberedSessionStore store)
 {
     private IApiClientService? _apiClient;
 
@@ -21,7 +21,41 @@ public class AuthStateService
     /// <summary>Call once after DI resolves both services.</summary>
     public void AttachApiClient(IApiClientService apiClient) => _apiClient = apiClient;
 
-    public void SetUser(UserDto user, string token)
+    public async Task RestoreAsync()
+    {
+        if (IsAuthenticated) return;
+        try
+        {
+            var session = await store.ReadAsync();
+            if (session is { } && session.ExpiresAt > DateTimeOffset.UtcNow)
+                SetUser(session.User, session.Token);
+            else if (session is not null)
+                await store.ClearAsync();
+        }
+        catch
+        {
+            // The app can still sign in when device or browser storage is unavailable.
+        }
+    }
+
+    public async Task SignInAsync(UserDto user, string token, DateTimeOffset? expiresAt, bool staySignedIn)
+    {
+        if (staySignedIn)
+        {
+            if (expiresAt is not { } expiration || expiration <= DateTimeOffset.UtcNow)
+                throw new InvalidOperationException("The server did not provide a valid remembered session.");
+
+            await store.SaveAsync(new RememberedSession(user, token, expiration));
+        }
+        else
+        {
+            await store.ClearAsync();
+        }
+
+        SetUser(user, token);
+    }
+
+    private void SetUser(UserDto user, string token)
     {
         CurrentUser = user;
         Token       = token;
@@ -29,11 +63,18 @@ public class AuthStateService
         OnAuthStateChanged?.Invoke();
     }
 
-    public void ClearUser()
+    public async Task SignOutAsync()
     {
-        CurrentUser = null;
-        Token       = null;
-        _apiClient?.SetToken(null);
-        OnAuthStateChanged?.Invoke();
+        try
+        {
+            await store.ClearAsync();
+        }
+        finally
+        {
+            CurrentUser = null;
+            Token       = null;
+            _apiClient?.SetToken(null);
+            OnAuthStateChanged?.Invoke();
+        }
     }
 }

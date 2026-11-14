@@ -58,5 +58,22 @@ public class HttpAuthService(IApiClientService api) : IAuthService
         }
     }
 
+    public async Task<AuthResult> DeleteAccountAsync(DeleteAccountRequest request)
+    {
+        try
+        {
+            return await api.PostAsync<DeleteAccountRequest, AuthResult>("api/auth/delete-account", request)
+                   ?? Fail("No response from server.");
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            return Fail("Your session has expired. Sign out and sign in again.");
+        }
+        catch (HttpRequestException)
+        {
+            return Fail("FuelMeter could not confirm the deletion. If you can still sign in, try again.");
+        }
+    }
+
     private static AuthResult Fail(string message) => new() { Success = false, Message = message };
 }

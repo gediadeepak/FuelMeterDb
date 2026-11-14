@@ -4,13 +4,15 @@ using FuelMeter.Core.Models;
 using FuelMeter.Core.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace FuelMeter.Data.Services;
 
 public class AuthService(
     FuelMeterDbContext db,
     IEmailService emailService,
-    IConfiguration configuration) : IAuthService
+    IConfiguration configuration,
+    ILogger<AuthService> logger)
 {
     // ── Register ────────────────────────────────────────────────
     public async Task<AuthResult> RegisterAsync(RegisterRequest request)
@@ -101,16 +103,21 @@ public class AuthService(
 
         await db.SaveChangesAsync();
 
-        var baseUrl   = configuration["AppSettings:AppBaseUrl"]?.TrimEnd('/') ?? string.Empty;
-        var resetLink = $"{baseUrl}/reset-password?token={rawToken}";
-
         try
         {
+            var baseUrl = configuration["AppSettings:AppBaseUrl"]?.TrimEnd('/');
+            if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var appUri) ||
+                (appUri.Scheme != Uri.UriSchemeHttps && appUri.Scheme != Uri.UriSchemeHttp))
+            {
+                throw new InvalidOperationException("AppSettings:AppBaseUrl must be an absolute web URL.");
+            }
+
+            var resetLink = $"{baseUrl}/reset-password?token={rawToken}";
             await emailService.SendPasswordResetEmailAsync(user.Email, user.FullName, resetLink);
         }
-        catch
+        catch (Exception ex)
         {
-            // Email delivery failure must not expose user existence — swallow and continue
+            logger.LogError(ex, "Password reset email delivery failed.");
         }
 
         return Ok("If that email is registered, a reset link has been sent.");
@@ -133,6 +140,27 @@ public class AuthService(
         await db.SaveChangesAsync();
 
         return Ok("Password reset successfully. You can now sign in.");
+    }
+
+    public async Task<AuthResult> DeleteAccountAsync(
+        int userId, DeleteAccountRequest request, CancellationToken cancellationToken)
+    {
+        var passwordHash = await db.Users
+            .Where(user => user.Id == userId && user.IsActive)
+            .Select(user => user.PasswordHash)
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (passwordHash is null || !BCrypt.Net.BCrypt.Verify(request.Password, passwordHash))
+            return Fail("Your current password could not be verified.");
+
+        // The foreign keys cascade to all account-owned records in the same database operation.
+        var deleted = await db.Users
+            .Where(user => user.Id == userId && user.IsActive && user.PasswordHash == passwordHash)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        return deleted == 1
+            ? Ok("Your FuelMeter account has been deleted.")
+            : Fail("Your account changed. Sign in again before retrying.");
     }
 
     // ── Helpers ──────────────────────────────────────────────────

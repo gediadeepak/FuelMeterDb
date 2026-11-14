@@ -1,4 +1,4 @@
-﻿using FuelMeter.Core.Services;
+using FuelMeter.Core.Services;
 using FuelMeter.Core.Services.Interfaces;
 using FuelMeter.Services;
 using Microsoft.Extensions.Configuration;
@@ -46,13 +46,11 @@ namespace FuelMeter
             System.Diagnostics.Debug.WriteLine($"[FuelMeter] ApiSettings:BaseUrl = {apiBase}");
 #endif
 
-            // ── Typed HttpClient → IApiClientService (bypass SSL for self-signed cert) ──
+            // ── Typed HttpClient → IApiClientService  ──
             builder.Services.AddSingleton<IApiClientService>(sp =>
             {
                 var handler = new HttpClientHandler
                 {
-                    ServerCertificateCustomValidationCallback =
-                        HttpClientHandler.DangerousAcceptAnyServerCertificateValidator,
                     AutomaticDecompression =
                         System.Net.DecompressionMethods.GZip | System.Net.DecompressionMethods.Deflate
                 };
@@ -80,10 +78,12 @@ namespace FuelMeter
             builder.Services.AddSingleton<IAnomalyService,              HttpAnomalyService>();
             builder.Services.AddSingleton<IExportImportService,         HttpExportImportService>();
 
+            builder.Services.AddSingleton<IRememberedSessionStore, RememberedSessionStore>();
+
             // ── Auth state + attach the API client ─────────────────
             builder.Services.AddSingleton<AuthStateService>(sp =>
             {
-                var state = new AuthStateService();
+                var state = new AuthStateService(sp.GetRequiredService<IRememberedSessionStore>());
                 var api   = sp.GetRequiredService<IApiClientService>();
                 state.AttachApiClient(api);
                 return state;
@@ -91,6 +91,9 @@ namespace FuelMeter
 
             // ── Platform notification scheduler ───────────────────
             builder.Services.AddSingleton<INotificationScheduler, NotificationSchedulerService>();
+#if ANDROID
+            builder.Services.AddSingleton<IBudgetPushSettings, AndroidBudgetPushSettings>();
+#endif
 
 #if DEBUG
             builder.Services.AddBlazorWebViewDeveloperTools();

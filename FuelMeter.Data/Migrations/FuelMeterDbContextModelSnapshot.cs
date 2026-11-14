@@ -48,6 +48,9 @@ namespace FuelMeter.Data.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<DateTime?>("PushAlertSentAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
@@ -217,6 +220,23 @@ namespace FuelMeter.Data.Migrations
                     b.ToTable("PasswordResetTokens", (string)null);
                 });
 
+            modelBuilder.Entity("FuelMeter.Core.Models.PushInstallation", b =>
+                {
+                    b.Property<string>("InstallationId")
+                        .HasMaxLength(22)
+                        .HasColumnType("nvarchar(22)")
+                        .UseCollation("Latin1_General_100_BIN2");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("InstallationId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("PushInstallations");
+                });
+
             modelBuilder.Entity("FuelMeter.Core.Models.User", b =>
                 {
                     b.Property<int>("Id")
@@ -374,6 +394,17 @@ namespace FuelMeter.Data.Migrations
                 {
                     b.HasOne("FuelMeter.Core.Models.User", "User")
                         .WithMany("PasswordResetTokens")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("FuelMeter.Core.Models.PushInstallation", b =>
+                {
+                    b.HasOne("FuelMeter.Core.Models.User", "User")
+                        .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();

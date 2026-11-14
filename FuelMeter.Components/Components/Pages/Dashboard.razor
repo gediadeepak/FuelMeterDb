@@ -2,6 +2,7 @@
 @using FuelMeter.Core.DTOs
 @using FuelMeter.Core.Services
 @using FuelMeter.Core.Services.Interfaces
+@using Microsoft.Extensions.Logging
 @layout MainLayout
 @inject IMeterReadingService MeterService
 @inject IBudgetService BudgetService
@@ -10,6 +11,7 @@
 @inject AuthStateService AuthState
 @inject NavigationManager Nav
 @inject IJSRuntime JS
+@inject ILogger<Dashboard> Logger
 
 <div class="dashboard">
 
@@ -29,7 +31,10 @@
 
     @if (!_loadingMain && _data is null)
     {
-        <div class="dash-empty"><i data-lucide="alert-triangle" class="bi" aria-hidden="true"></i> Could not load data. Please check your connection.</div>
+        <div class="dash-empty" role="alert">
+            <p><i data-lucide="alert-triangle" class="bi" aria-hidden="true"></i> @_mainError</p>
+            <button type="button" class="btn btn-outline-primary" @onclick="LoadAsync">Try again</button>
+        </div>
     }
 
     @if (!_loadingAnomalies && _anomalies?.Anomalies.Count > 0)
@@ -37,9 +42,10 @@
         <div class="anomaly-banner">
             <div class="anomaly-banner-header">
                 <span class="anomaly-icon"><i data-lucide="siren" class="bi" aria-hidden="true"></i></span>
-                <strong>Unusual usage detected</strong>
+                <strong>Usage above your recent average</strong>
                 <span class="anomaly-count">@_anomalies.Anomalies.Count flagged day(s)</span>
             </div>
+            <p>These alerts compare consumption with your recent average. Your monthly spending budget is shown separately below.</p>
             <ul class="anomaly-list">
                 @foreach (var a in _anomalies.Anomalies.Take(3))
                 {
@@ -81,7 +87,7 @@
             </div>
             <div class="stat-card">
                 <span class="stat-label">Gas Used</span>
-                <span class="stat-value green">@_data.GasUsage.ToString("N0") units</span>
+                <span class="stat-value green">@_data.GasUsage.ToString("N2") units</span>
             </div>
             <div class="stat-card">
                 <span class="stat-label">Gas Cost</span>
@@ -171,7 +177,7 @@
 
         <!-- Formula Hint -->
         <div class="formula-hint">
-            <i data-lucide="lightbulb" class="bi" aria-hidden="true"></i> <em>Formula: usage = latest meter reading − first meter reading for the selected month. Cost = (usage × price per unit) + (standing charge p/day ÷ 100 × days in month).</em>
+            <i data-lucide="lightbulb" class="bi" aria-hidden="true"></i> <em>Formula: usage = latest meter reading − previous reading before the selected month (or the first reading in the month when no earlier reading exists). Cost = (usage × price per unit) + (standing charge p/day ÷ 100 × days in month).</em>
         </div>
     }
 
@@ -433,14 +439,22 @@
         var projectionTask = _projectionAvailable
             ? LoadProjectionAsync(userId, parsed.Year, parsed.Month)
             : Task.CompletedTask;
-        var anomaliesTask = LoadAnomaliesAsync(userId);
+        var anomaliesTask = LoadAnomaliesAsync(userId, parsed.Year, parsed.Month);
 
         await Task.WhenAll(mainTask, budgetsTask, comparisonTask, projectionTask, anomaliesTask);
     }
 
-    private async Task LoadAnomaliesAsync(int userId)
+    private async Task LoadAnomaliesAsync(int userId, int year, int month)
     {
-        try { _anomalies = await AnomalyService.DetectAnomaliesAsync(userId); }
+        try
+        {
+            var monthStart = new DateTime(year, month, 1);
+            var monthEnd = monthStart.AddMonths(1);
+            var daysBack = Math.Max(60, (DateTime.Today - monthStart).Days);
+            _anomalies = await AnomalyService.DetectAnomaliesAsync(userId, daysBack: daysBack);
+            _anomalies.Anomalies = _anomalies.Anomalies
+                .Where(a => a.Date >= monthStart && a.Date < monthEnd).ToList();
+        }
         catch { _anomalies = null; }
         finally
         {
@@ -451,14 +465,26 @@
 
     private async Task LoadMainAsync(int userId, int year, int month)
     {
-        try { _data = await MeterService.GetDashboardAsync(userId, year, month); }
-        catch { _data = null; }
+        try
+        {
+            _data = await MeterService.GetDashboardAsync(userId, year, month);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load the FuelMeter dashboard for {Year}-{Month}.", year, month);
+            _data = null;
+            _mainError = ex is HttpRequestException { StatusCode: System.Net.HttpStatusCode.Unauthorized }
+                ? "Your session has expired. Sign out and sign in again."
+                : "FuelMeter could not load your dashboard. Try again in a moment.";
+        }
         finally
         {
             _loadingMain = false;
             await InvokeAsync(StateHasChanged);
         }
     }
+
+    private string _mainError = "FuelMeter could not load your dashboard.";
 
     private async Task LoadBudgetsAsync(int userId, int year, int month)
     {

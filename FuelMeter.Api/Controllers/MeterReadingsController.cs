@@ -1,4 +1,5 @@
 using FuelMeter.Api.Extensions;
+using FuelMeter.Api.Services;
 using FuelMeter.Core.DTOs;
 using FuelMeter.Core.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -11,7 +12,7 @@ namespace FuelMeter.Api.Controllers;
 [Authorize]
 [Route("api/[controller]")]
 [Produces("application/json")]
-public class MeterReadingsController(IMeterReadingService service) : ControllerBase
+public class MeterReadingsController(IMeterReadingService service, BudgetPushAlerts alerts) : ControllerBase
 {
     /// <summary>Return a filtered grid of meter readings for the authenticated user.</summary>
     [HttpGet]
@@ -44,8 +45,13 @@ public class MeterReadingsController(IMeterReadingService service) : ControllerB
     public async Task<ActionResult<SaveMeterReadingResult>> Save([FromBody] MeterReadingDto dto)
     {
         var userId = User.GetUserId();
+        var budget = await alerts.GetBudgetBeforeSaveAsync(userId, dto, HttpContext.RequestAborted);
         var result = await service.SaveAsync(userId, dto);
         if (!result.Success) return BadRequest(result);
+
+        if (budget is not null)
+            await alerts.SendIfCrossedAsync(userId, budget, HttpContext.RequestAborted);
+
         return Ok(result);
     }
 

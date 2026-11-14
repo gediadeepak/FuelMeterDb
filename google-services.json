@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "207405536028",
+    "project_id": "fuelmeter-33520",
+    "storage_bucket": "fuelmeter-33520.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:207405536028:android:40be8efdbffeeb57ea60d9",
+        "android_client_info": {
+          "package_name": "com.fuelmeter.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDPhNmIptVGEsADGzmhOn5wIQ6k8Y9nQaw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

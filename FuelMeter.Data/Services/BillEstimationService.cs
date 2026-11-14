@@ -19,19 +19,24 @@ public class BillEstimationService : IBillEstimationService
     {
         var readings = await _context.MeterReadings
             .Where(r => r.UserId == userId && r.FuelType == request.FuelType)
-            .Where(r => r.ReadingDate >= request.StartDate && r.ReadingDate <= request.EndDate)
-            .OrderBy(r => r.ReadingDate)
+            .Where(r => r.ReadingDate >= request.StartDate && r.ReadingDate < request.EndDate.Date.AddDays(1))
+            .OrderBy(r => r.ReadingDate).ThenBy(r => r.Id)
             .ToListAsync();
 
-        if (readings.Count < 2)
+        if (readings.Count == 0)
             return null;
 
-        var startReading = readings.First();
+        var previous = await _context.MeterReadings
+            .Where(r => r.UserId == userId && r.FuelType == request.FuelType
+                     && r.ReadingDate < request.StartDate)
+            .OrderByDescending(r => r.ReadingDate).ThenByDescending(r => r.Id)
+            .FirstOrDefaultAsync();
+        if (readings.Count == 1 && previous is null)
+            return null;
+
+        var startReading = previous ?? readings.First();
         var endReading = readings.Last();
-        var unitsConsumed = endReading.ReadingValue - startReading.ReadingValue;
-
-        if (unitsConsumed < 0)
-            return null;
+        var unitsConsumed = ReadingUsage.Total(readings, startReading.ReadingValue);
 
         // Get rates
         decimal unitRate;
@@ -110,7 +115,7 @@ public class BillEstimationService : IBillEstimationService
 
                 var readings = await _context.MeterReadings
                     .Where(r => r.UserId == userId && r.FuelType == fuelType)
-                    .Where(r => r.ReadingDate >= startDate && r.ReadingDate <= endDate)
+                    .Where(r => r.ReadingDate >= startDate && r.ReadingDate < endDate.Date.AddDays(1))
                     .OrderBy(r => r.ReadingDate)
                     .ToListAsync();
 
@@ -119,7 +124,7 @@ public class BillEstimationService : IBillEstimationService
                 bool isComplete = false;
                 DateTime? lastReadingDate = null;
 
-                if (readings.Count >= 2)
+                if (readings.Count > 0)
                 {
                     var request = new BillEstimationRequestDto(fuelType, startDate, endDate);
                     var estimation = await EstimateBillAsync(userId, request);
@@ -204,7 +209,7 @@ public class BillEstimationService : IBillEstimationService
 
             var readings = await _context.MeterReadings
                 .Where(r => r.UserId == userId && r.FuelType == fuelType)
-                .Where(r => r.ReadingDate >= startDate && r.ReadingDate <= endDate)
+                .Where(r => r.ReadingDate >= startDate && r.ReadingDate < endDate.Date.AddDays(1))
                 .OrderBy(r => r.ReadingDate)
                 .ToListAsync();
 
@@ -213,7 +218,7 @@ public class BillEstimationService : IBillEstimationService
             bool isComplete = false;
             DateTime? lastReadingDate = null;
 
-            if (readings.Count >= 2)
+            if (readings.Count > 0)
             {
                 var request = new BillEstimationRequestDto(fuelType, startDate, endDate);
                 var estimation = await EstimateBillAsync(userId, request);

@@ -11,4 +11,6 @@ public class LoginModel
     [Required(ErrorMessage = "Password is required.")]
     [MinLength(6, ErrorMessage = "Password must be at least 6 characters.")]
     public string Password { get; set; } = string.Empty;
+
+    public bool StaySignedIn { get; set; }
 }

@@ -8,4 +8,5 @@ public interface IAuthService
     Task<AuthResult> LoginAsync(LoginRequest request);
     Task<AuthResult> ForgotPasswordAsync(ForgotPasswordRequest request);
     Task<AuthResult> ResetPasswordAsync(string token, string newPassword);
+    Task<AuthResult> DeleteAccountAsync(DeleteAccountRequest request);
 }

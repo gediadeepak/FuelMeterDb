@@ -31,16 +31,7 @@ public class SettingsService(FuelMeterDbContext db) : ISettingsService
                 existing.UpdatedAt = DateTime.UtcNow;
             }
 
-            existing.ElectricityProvider      = dto.ElectricityProvider.Trim();
-            existing.ElectricityPricePerKwh   = dto.ElectricityPricePerKwh;
-            existing.ElectricityStandingCharge = dto.ElectricityStandingCharge;
-            existing.ElectricityMonthlyBudget = dto.ElectricityMonthlyBudget;
-            existing.GasProvider              = dto.GasProvider.Trim();
-            existing.GasPricePerUnit          = dto.GasPricePerUnit;
-            existing.GasStandingCharge        = dto.GasStandingCharge;
-            existing.GasMonthlyBudget         = dto.GasMonthlyBudget;
-            existing.Currency                 = dto.Currency;
-            existing.CurrencySymbol           = dto.CurrencySymbol;
+            ApplySettings(existing, dto);
 
             await db.SaveChangesAsync();
 
@@ -52,7 +43,21 @@ public class SettingsService(FuelMeterDbContext db) : ISettingsService
         }
     }
 
-    private static UserSettingsDto ToDto(UserSettings s) => new()
+    internal static void ApplySettings(UserSettings settings, UserSettingsDto dto)
+    {
+        settings.ElectricityProvider      = dto.ElectricityProvider.Trim();
+        settings.ElectricityPricePerKwh   = dto.ElectricityPricePerKwh;
+        settings.ElectricityStandingCharge = dto.ElectricityStandingCharge;
+        settings.ElectricityMonthlyBudget = dto.ElectricityMonthlyBudget;
+        settings.GasProvider              = dto.GasProvider.Trim();
+        settings.GasPricePerUnit          = dto.GasPricePerUnit;
+        settings.GasStandingCharge        = dto.GasStandingCharge;
+        settings.GasMonthlyBudget         = dto.GasMonthlyBudget;
+        settings.Currency                 = dto.Currency;
+        settings.CurrencySymbol           = dto.CurrencySymbol;
+    }
+
+    internal static UserSettingsDto ToDto(UserSettings s) => new()
     {
         ElectricityProvider       = s.ElectricityProvider,
         ElectricityPricePerKwh    = s.ElectricityPricePerKwh,

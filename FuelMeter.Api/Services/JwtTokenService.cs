@@ -12,7 +12,7 @@ public class JwtTokenService(IOptions<JwtOptions> opts)
 {
     private readonly JwtOptions _opts = opts.Value;
 
-    public string CreateToken(UserDto user)
+    public (string Token, DateTimeOffset ExpiresAt) CreateToken(UserDto user, bool staySignedIn = false)
     {
         var key   = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_opts.Key));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
@@ -25,13 +25,18 @@ public class JwtTokenService(IOptions<JwtOptions> opts)
             new Claim(JwtRegisteredClaimNames.Jti,   Guid.NewGuid().ToString())
         };
 
+        var now = DateTimeOffset.UtcNow;
+        var expiresAt = staySignedIn
+            ? now.AddDays(Math.Clamp(_opts.RememberedSessionDays, 1, 30))
+            : now.AddMinutes(_opts.ExpiryMinutes);
+
         var token = new JwtSecurityToken(
             issuer:             _opts.Issuer,
             audience:           _opts.Audience,
             claims:             claims,
-            expires:            DateTime.UtcNow.AddMinutes(_opts.ExpiryMinutes),
+            expires:            expiresAt.UtcDateTime,
             signingCredentials: creds);
 
-        return new JwtSecurityTokenHandler().WriteToken(token);
+        return (new JwtSecurityTokenHandler().WriteToken(token), expiresAt);
     }
 }

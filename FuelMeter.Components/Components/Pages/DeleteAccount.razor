@@ -1,0 +1,102 @@
+@page "/delete-account"
+@layout AuthLayout
+@inject IAuthService AuthService
+@inject AuthStateService AuthState
+@inject INotificationScheduler NotificationScheduler
+@inject NavigationManager Nav
+
+<PageTitle>Delete FuelMeter account</PageTitle>
+
+<main class="auth-page">
+    <div class="auth-card">
+        <h1 class="auth-title">Delete your FuelMeter account</h1>
+
+        @if (_deleted)
+        {
+            <p class="auth-alert auth-alert-success" role="status">Your FuelMeter account has been deleted.</p>
+            <a href="/login">Return to sign in</a>
+        }
+        else
+        {
+            <p>Permanently delete your account, meter readings, budgets, settings and reminder preferences. This action cannot be undone.</p>
+
+            @if (AuthState.IsAuthenticated)
+            {
+                <p><a href="/export-import">Export your data</a> before deleting your account.</p>
+                @if (_errorMessage is not null)
+                {
+                    <p class="auth-alert auth-alert-error" role="alert">@_errorMessage</p>
+                }
+
+                <EditForm Model="_request" OnValidSubmit="DeleteAsync" FormName="DeleteAccountForm">
+                    <DataAnnotationsValidator />
+                    <div class="form-group">
+                        <label for="delete-account-password">Current password</label>
+                        <InputText id="delete-account-password" type="password" class="form-control"
+                                   autocomplete="current-password" @bind-Value="_request.Password"
+                                   disabled="@_deleting" />
+                        <ValidationMessage For="() => _request.Password" />
+                    </div>
+                    <div class="button-row">
+                        <button type="submit" class="btn btn-danger" disabled="@_deleting">
+                            @(_deleting ? "Deleting account…" : "Permanently delete account")
+                        </button>
+                        @if (!_deleting)
+                        {
+                            <a href="/settings" class="btn btn-secondary">Cancel</a>
+                        }
+                    </div>
+                </EditForm>
+            }
+            else
+            {
+                <p>Sign in to confirm which account to delete.</p>
+                <a href="/login?deleteAccount=true" class="btn btn-primary">Sign in to delete account</a>
+                <p class="auth-footer"><a href="/forgot-password">Forgot your password?</a></p>
+            }
+        }
+    </div>
+</main>
+
+@code {
+    private readonly DeleteAccountRequest _request = new();
+    private bool _deleting;
+    private bool _deleted;
+    private string? _errorMessage;
+
+    private async Task DeleteAsync()
+    {
+        if (_deleting || _deleted)
+            return;
+
+        _deleting = true;
+        _errorMessage = null;
+        try
+        {
+            var result = await AuthService.DeleteAccountAsync(_request);
+            if (!result.Success)
+            {
+                _errorMessage = result.Message;
+                return;
+            }
+
+            _deleted = true;
+            await AuthState.SignOutAsync();
+            await NotificationScheduler.CancelElectricityReminderAsync();
+            await NotificationScheduler.CancelGasReminderAsync();
+        }
+        catch (Exception) when (!_deleted)
+        {
+            _errorMessage = "FuelMeter could not confirm the deletion. If you can still sign in, try again.";
+        }
+        catch (Exception)
+        {
+            // API access has already been revoked. Device cleanup can fail independently.
+        }
+        finally
+        {
+            _request.Password = string.Empty;
+            _deleting = false;
+        }
+    }
+}

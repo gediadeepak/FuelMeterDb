@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using Microsoft.VisualBasic.FileIO;
 
 namespace FuelMeter.Data.Services;
 
@@ -70,7 +71,8 @@ public class ExportImportService : IExportImportService
             user.Email,
             meterReadings,
             budgets,
-            settingsDto
+            settingsDto,
+            settings is null ? null : SettingsService.ToDto(settings)
         );
     }
 
@@ -101,7 +103,7 @@ public class ExportImportService : IExportImportService
         sb.AppendLine("Id,FuelType,ReadingDate,ReadingValue,Notes");
         foreach (var reading in data.MeterReadings)
         {
-            sb.AppendLine($"{reading.Id},{EscapeCsv(reading.FuelType)},{reading.ReadingDate:yyyy-MM-dd HH:mm:ss},{reading.ReadingValue},{EscapeCsv(reading.Notes ?? "")}");
+            sb.AppendLine(FormattableString.Invariant($"{reading.Id},{EscapeCsv(reading.FuelType)},{reading.ReadingDate:yyyy-MM-dd HH:mm:ss},{reading.ReadingValue},{EscapeCsv(reading.Notes ?? "")}"));
         }
 
         sb.AppendLine();
@@ -109,15 +111,15 @@ public class ExportImportService : IExportImportService
         sb.AppendLine("Id,FuelType,Year,Month,BudgetLimit,Notes");
         foreach (var budget in data.Budgets)
         {
-            sb.AppendLine($"{budget.Id},{EscapeCsv(budget.FuelType)},{budget.Year},{budget.Month},{budget.BudgetLimit},{EscapeCsv(budget.Notes ?? "")}");
+            sb.AppendLine(FormattableString.Invariant($"{budget.Id},{EscapeCsv(budget.FuelType)},{budget.Year},{budget.Month},{budget.BudgetLimit},{EscapeCsv(budget.Notes ?? "")}"));
         }
 
-        if (data.UserSettings != null)
+        if (data.TariffSettings is not null)
         {
             sb.AppendLine();
-            sb.AppendLine("=== USER SETTINGS ===");
-            sb.AppendLine("FuelType,UnitRate,StandingCharge,BillingDay");
-            sb.AppendLine($"{EscapeCsv(data.UserSettings.FuelType)},{data.UserSettings.UnitRate},{data.UserSettings.StandingCharge},{data.UserSettings.BillingDay}");
+            sb.AppendLine("=== TARIFF SETTINGS ===");
+            sb.AppendLine("SettingsJson");
+            sb.AppendLine(EscapeCsv(JsonSerializer.Serialize(data.TariffSettings)));
         }
 
         return sb.ToString();
@@ -155,62 +157,70 @@ public class ExportImportService : IExportImportService
 
     public async Task<ImportResultDto> ImportFromCsvAsync(int userId, string csvContent)
     {
-        var errors = new List<string>();
         var warnings = new List<string>();
-        var meterReadings = new List<MeterReadingImportDto>();
+        var readings = new List<MeterReadingImportDto>();
         var budgets = new List<BudgetImportDto>();
+        UserSettingsImportDto? legacySettings = null;
+        UserSettingsDto? tariffSettings = null;
+        var section = string.Empty;
 
-        var lines = csvContent.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-        var currentSection = "";
-
-        foreach (var line in lines)
+        using var parser = new TextFieldParser(new StringReader(csvContent.TrimStart('\uFEFF')))
         {
-            if (line.StartsWith("==="))
-            {
-                if (line.Contains("METER READINGS"))
-                    currentSection = "readings";
-                else if (line.Contains("BUDGETS"))
-                    currentSection = "budgets";
-                else if (line.Contains("USER SETTINGS"))
-                    currentSection = "settings";
-                continue;
-            }
+            HasFieldsEnclosedInQuotes = true,
+            TrimWhiteSpace = false
+        };
+        parser.SetDelimiters(",");
 
-            if (line.Contains("FuelType") || line.Contains("Id,"))
-                continue; // Skip header rows
-
+        while (!parser.EndOfData)
+        {
+            var lineNumber = parser.LineNumber;
             try
             {
-                var parts = ParseCsvLine(line);
+                var fields = parser.ReadFields();
+                if (fields is null) break;
 
-                if (currentSection == "readings" && parts.Length >= 4)
+                if (fields.Length == 1 && fields[0].StartsWith("==="))
                 {
-                    meterReadings.Add(new MeterReadingImportDto(
-                        parts[1],
-                        DateTime.Parse(parts[2], CultureInfo.InvariantCulture),
-                        decimal.Parse(parts[3], CultureInfo.InvariantCulture),
-                        parts.Length > 4 ? parts[4] : null
-                    ));
+                    section = fields[0];
+                    continue;
                 }
-                else if (currentSection == "budgets" && parts.Length >= 5)
+
+                switch (section)
                 {
-                    budgets.Add(new BudgetImportDto(
-                        parts[1],
-                        int.Parse(parts[2]),
-                        int.Parse(parts[3]),
-                        decimal.Parse(parts[4], CultureInfo.InvariantCulture),
-                        parts.Length > 5 ? parts[5] : null
-                    ));
+                    case "=== METER READINGS ===" when fields[0] != "Id":
+                        readings.Add(new MeterReadingImportDto(
+                            fields[1], DateTime.Parse(fields[2], CultureInfo.InvariantCulture),
+                            decimal.Parse(fields[3], CultureInfo.InvariantCulture), fields.ElementAtOrDefault(4)));
+                        break;
+                    case "=== BUDGETS ===" when fields[0] != "Id":
+                        budgets.Add(new BudgetImportDto(
+                            fields[1], int.Parse(fields[2], CultureInfo.InvariantCulture),
+                            int.Parse(fields[3], CultureInfo.InvariantCulture),
+                            decimal.Parse(fields[4], CultureInfo.InvariantCulture), fields.ElementAtOrDefault(5)));
+                        break;
+                    case "=== USER SETTINGS ===" when fields[0] != "FuelType":
+                        legacySettings = new UserSettingsImportDto(
+                            fields[0], decimal.Parse(fields[1], CultureInfo.InvariantCulture),
+                            decimal.Parse(fields[2], CultureInfo.InvariantCulture),
+                            int.Parse(fields[3], CultureInfo.InvariantCulture));
+                        break;
+                    case "=== TARIFF SETTINGS ===" when fields[0] != "SettingsJson":
+                        tariffSettings = JsonSerializer.Deserialize<UserSettingsDto>(fields[0])
+                            ?? throw new FormatException();
+                        break;
                 }
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is MalformedLineException or FormatException
+                or OverflowException or IndexOutOfRangeException or JsonException)
             {
-                warnings.Add($"Skipped line due to parsing error: {ex.Message}");
+                warnings.Add($"Skipped invalid CSV record starting on line {lineNumber}.");
             }
         }
 
-        var importData = new ImportDataDto(meterReadings, budgets, null);
-        return await ImportDataAsync(userId, importData);
+        var data = new ImportDataDto(readings, budgets, legacySettings, tariffSettings);
+        var result = await ImportDataAsync(userId, data);
+        result.Warnings.InsertRange(0, warnings);
+        return result;
     }
 
     public async Task<ImportResultDto> ImportDataAsync(int userId, ImportDataDto importData)
@@ -219,7 +229,6 @@ public class ExportImportService : IExportImportService
         var warnings = new List<string>();
         int readingsImported = 0;
         int budgetsImported = 0;
-        bool settingsImported = false;
 
         // Validate
         var validationErrors = await ValidateImportDataAsync(importData);
@@ -229,10 +238,10 @@ public class ExportImportService : IExportImportService
             return new ImportResultDto(false, 0, 0, false, errors, warnings);
         }
 
-        using var transaction = await _context.Database.BeginTransactionAsync();
-
         try
         {
+            var addedReadings = new HashSet<(string FuelType, DateTime Date, decimal Value)>();
+
             // Import meter readings
             foreach (var readingDto in importData.MeterReadings)
             {
@@ -243,7 +252,7 @@ public class ExportImportService : IExportImportService
                                  r.ReadingDate == readingDto.ReadingDate &&
                                  r.ReadingValue == readingDto.ReadingValue);
 
-                if (exists)
+                if (exists || !addedReadings.Add((readingDto.FuelType, readingDto.ReadingDate, readingDto.ReadingValue)))
                 {
                     warnings.Add($"Skipped duplicate reading: {readingDto.FuelType} on {readingDto.ReadingDate:yyyy-MM-dd}");
                     continue;
@@ -263,11 +272,14 @@ public class ExportImportService : IExportImportService
                 readingsImported++;
             }
 
+            var addedBudgets = new Dictionary<(string FuelType, int Year, int Month), Budget>();
+
             // Import budgets
             foreach (var budgetDto in importData.Budgets)
             {
                 // Check for existing budget
-                var existing = await _context.Budgets
+                var key = (budgetDto.FuelType, budgetDto.Year, budgetDto.Month);
+                var existing = addedBudgets.GetValueOrDefault(key) ?? await _context.Budgets
                     .FirstOrDefaultAsync(b => b.UserId == userId &&
                                             b.FuelType == budgetDto.FuelType &&
                                             b.Year == budgetDto.Year &&
@@ -296,13 +308,42 @@ public class ExportImportService : IExportImportService
                     };
 
                     _context.Budgets.Add(budget);
+                    addedBudgets.Add(key, budget);
                 }
 
                 budgetsImported++;
             }
 
+            var settingsImported = importData.TariffSettings is not null || importData.UserSettings is not null;
+            if (settingsImported)
+            {
+                var settings = await _context.UserSettings.SingleOrDefaultAsync(s => s.UserId == userId);
+                if (settings is null)
+                {
+                    settings = new UserSettings { UserId = userId };
+                    _context.UserSettings.Add(settings);
+                }
+                else
+                {
+                    settings.UpdatedAt = DateTime.UtcNow;
+                }
+
+                if (importData.TariffSettings is { } tariff)
+                    SettingsService.ApplySettings(settings, tariff);
+                else if (importData.UserSettings is { FuelType: "Gas" } gas)
+                {
+                    settings.GasPricePerUnit = gas.UnitRate;
+                    settings.GasStandingCharge = gas.StandingCharge;
+                }
+                else if (importData.UserSettings is { } electricity)
+                {
+                    settings.ElectricityPricePerKwh = electricity.UnitRate;
+                    settings.ElectricityStandingCharge = electricity.StandingCharge;
+                }
+            }
+
+            // A single SaveChanges uses EF's transaction and SQL Server retry strategy.
             await _context.SaveChangesAsync();
-            await transaction.CommitAsync();
 
             return new ImportResultDto(
                 true,
@@ -315,7 +356,6 @@ public class ExportImportService : IExportImportService
         }
         catch (Exception ex)
         {
-            await transaction.RollbackAsync();
             errors.Add($"Import failed: {ex.Message}");
             return new ImportResultDto(false, 0, 0, false, errors, warnings);
         }
@@ -324,6 +364,9 @@ public class ExportImportService : IExportImportService
     public Task<List<string>> ValidateImportDataAsync(ImportDataDto importData)
     {
         var errors = new List<string>();
+
+        if (importData.MeterReadings is null || importData.Budgets is null)
+            return Task.FromResult(new List<string> { "Backup must contain readings and budget lists." });
 
         // Validate meter readings
         foreach (var reading in importData.MeterReadings)
@@ -360,6 +403,26 @@ public class ExportImportService : IExportImportService
                 errors.Add($"Invalid negative budget limit: {budget.BudgetLimit}");
         }
 
+        if (importData.TariffSettings is { } tariff)
+        {
+            if (tariff.ElectricityProvider is null || tariff.ElectricityProvider.Length > 150
+                || tariff.GasProvider is null || tariff.GasProvider.Length > 150
+                || string.IsNullOrWhiteSpace(tariff.Currency) || tariff.Currency.Length > 10
+                || string.IsNullOrWhiteSpace(tariff.CurrencySymbol) || tariff.CurrencySymbol.Length > 5)
+                errors.Add("Invalid provider or currency settings.");
+
+            if (tariff.ElectricityPricePerKwh < 0 || tariff.ElectricityStandingCharge < 0
+                || tariff.GasPricePerUnit < 0 || tariff.GasStandingCharge < 0
+                || tariff.ElectricityMonthlyBudget < 0 || tariff.GasMonthlyBudget < 0)
+                errors.Add("Tariff rates, standing charges and budgets must be non-negative.");
+        }
+        else if (importData.UserSettings is { } legacy
+            && (legacy.FuelType is not ("Combined" or "Electricity" or "Gas")
+                || legacy.UnitRate < 0 || legacy.StandingCharge < 0))
+        {
+            errors.Add("Invalid settings in legacy backup.");
+        }
+
         return Task.FromResult(errors);
     }
 
@@ -368,48 +431,11 @@ public class ExportImportService : IExportImportService
         if (string.IsNullOrEmpty(value))
             return "";
 
-        if (value.Contains(',') || value.Contains('"') || value.Contains('\n'))
+        if (value.Contains(',') || value.Contains('"') || value.Contains('\n') || value.Contains('\r'))
         {
             return $"\"{value.Replace("\"", "\"\"")}\"";
         }
 
         return value;
-    }
-
-    private static string[] ParseCsvLine(string line)
-    {
-        var result = new List<string>();
-        var current = new StringBuilder();
-        bool inQuotes = false;
-
-        for (int i = 0; i < line.Length; i++)
-        {
-            char c = line[i];
-
-            if (c == '"')
-            {
-                if (inQuotes && i + 1 < line.Length && line[i + 1] == '"')
-                {
-                    current.Append('"');
-                    i++;
-                }
-                else
-                {
-                    inQuotes = !inQuotes;
-                }
-            }
-            else if (c == ',' && !inQuotes)
-            {
-                result.Add(current.ToString());
-                current.Clear();
-            }
-            else
-            {
-                current.Append(c);
-            }
-        }
-
-        result.Add(current.ToString());
-        return result.ToArray();
     }
 }

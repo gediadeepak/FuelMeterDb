@@ -135,6 +135,14 @@
         </EditForm>
     }
 
+    @if (AuthState.IsAuthenticated)
+    {
+        <div class="settings-section">
+            <h2 class="section-title">Account</h2>
+            <a href="/delete-account">Delete account</a>
+        </div>
+    }
+
 </div>
 
 @code {

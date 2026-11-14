@@ -1,28 +1,138 @@
-﻿@namespace FuelMeter.Components.Components
-<ErrorBoundary>
-    <ChildContent>
-        <Router AppAssembly="typeof(Routes).Assembly">
-            <Found Context="routeData">
-                <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
-                <FocusOnNavigate RouteData="routeData" Selector="h1" />
-            </Found>
-            <NotFound>
-                <LayoutView Layout="typeof(Layout.MainLayout)">
-                    <p>Sorry, there's nothing at this address.</p>
-                </LayoutView>
-            </NotFound>
-        </Router>
-    </ChildContent>
-    <ErrorContent Context="ex">
-        <div style="padding:20px;font-family:monospace;background:#fff3f3;color:#c00;border:1px solid #c00;margin:10px;border-radius:6px;">
-            <h3>&#9888; Startup error</h3>
-            <p><strong>@ex.GetType().FullName</strong></p>
-            <pre style="white-space:pre-wrap;word-break:break-all;">@ex.Message</pre>
-            @if (ex.InnerException is not null)
-            {
-                <pre style="white-space:pre-wrap;word-break:break-all;color:#a00;">Inner: @ex.InnerException.Message</pre>
-            }
-            <pre style="white-space:pre-wrap;word-break:break-all;font-size:11px;color:#666;">@ex.StackTrace</pre>
+@namespace FuelMeter.Components.Components
+@using FuelMeter.Core.Services
+@inject AuthStateService AuthState
+@inject NavigationManager Navigation
+@if (_sessionLoaded)
+{
+    <ErrorBoundary>
+        <ChildContent>
+            <Router AppAssembly="typeof(Routes).Assembly">
+                <Found Context="routeData">
+                    <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
+                    <FocusOnNavigate RouteData="routeData" Selector="h1" />
+                </Found>
+                <NotFound>
+                    <LayoutView Layout="typeof(Layout.MainLayout)">
+                        <p>Sorry, there's nothing at this address.</p>
+                    </LayoutView>
+                </NotFound>
+            </Router>
+        </ChildContent>
+        <ErrorContent Context="ex">
+            <div style="padding:20px;font-family:monospace;background:#fff3f3;color:#c00;border:1px solid #c00;margin:10px;border-radius:6px;">
+                <h3>&#9888; Startup error</h3>
+                <p><strong>@ex.GetType().FullName</strong></p>
+                <pre style="white-space:pre-wrap;word-break:break-all;">@ex.Message</pre>
+                @if (ex.InnerException is not null)
+                {
+                    <pre style="white-space:pre-wrap;word-break:break-all;color:#a00;">Inner: @ex.InnerException.Message</pre>
+                }
+                <pre style="white-space:pre-wrap;word-break:break-all;font-size:11px;color:#666;">@ex.StackTrace</pre>
+            </div>
+        </ErrorContent>
+    </ErrorBoundary>
+}
+else
+{
+    <style>
+        .fuelmeter-startup {
+            min-height: 100vh;
+            min-height: 100dvh;
+            display: grid;
+            place-items: center;
+            padding: 1.5rem;
+            background: #eef3ff;
+            color: #172956;
+        }
+
+        .fuelmeter-startup-card {
+            width: min(100%, 24rem);
+            padding: 2.5rem 1.5rem 1.5rem;
+            border: 1px solid #dbe5f6;
+            border-radius: 1.25rem;
+            background: #fff;
+            box-shadow: 0 14px 38px #17397c14;
+            text-align: center;
+        }
+
+        .fuelmeter-startup-card img {
+            object-fit: contain;
+        }
+
+        .fuelmeter-startup-card h1 {
+            margin: .65rem 0 1.15rem;
+            font-size: 1.6rem;
+            font-weight: 700;
+        }
+
+        .fuelmeter-startup-status {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: .65rem;
+            margin: 0;
+            color: #415579;
+        }
+
+        .fuelmeter-startup-spinner {
+            width: 1.1rem;
+            height: 1.1rem;
+            flex: 0 0 auto;
+            border: 2px solid #d6e4f9;
+            border-top-color: #1457a9;
+            border-radius: 50%;
+            animation: fuelmeter-spin .85s linear infinite;
+        }
+
+        .fuelmeter-startup-recovery {
+            margin: 1.25rem 0 0;
+            color: #415579;
+            font-size: .875rem;
+            animation: fuelmeter-show-recovery 8s step-end both;
+        }
+
+        .fuelmeter-startup-recovery a {
+            color: #1457a9;
+            text-decoration: underline;
+        }
+
+        @@keyframes fuelmeter-spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @@keyframes fuelmeter-show-recovery {
+            from { visibility: hidden; }
+            to { visibility: visible; }
+        }
+
+        @@media (prefers-reduced-motion: reduce) {
+            .fuelmeter-startup-spinner { animation: none; }
+        }
+    </style>
+    <main class="fuelmeter-startup">
+        <div class="fuelmeter-startup-card">
+            <img src="images/fuelMeter_Logo.png" width="64" height="64" alt="" />
+            <h1>FuelMeter</h1>
+            <p role="status" class="fuelmeter-startup-status">
+                <span class="fuelmeter-startup-spinner" aria-hidden="true"></span>
+                <span>Getting your session ready…</span>
+            </p>
+            <p class="fuelmeter-startup-recovery">
+                Taking longer than expected? <a href="@Navigation.Uri" data-enhance-nav="false">Reload page</a>
+            </p>
         </div>
-    </ErrorContent>
-</ErrorBoundary>
+    </main>
+}
+
+@code {
+    private bool _sessionLoaded;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        await AuthState.RestoreAsync();
+        _sessionLoaded = true;
+        StateHasChanged();
+    }
+}

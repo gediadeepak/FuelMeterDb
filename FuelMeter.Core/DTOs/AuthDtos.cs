@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace FuelMeter.Core.DTOs;
 
 public class RegisterRequest
@@ -9,6 +11,7 @@ public class RegisterRequest
 
 public class LoginRequest
 {
+    public bool StaySignedIn { get; set; }
     public string Email { get; set; } = string.Empty;
     public string Password { get; set; } = string.Empty;
 }
@@ -24,11 +27,18 @@ public class ResetPasswordRequest
     public string NewPassword { get; set; } = string.Empty;
 }
 
+public class DeleteAccountRequest
+{
+    [Required]
+    public string Password { get; set; } = string.Empty;
+}
+
 public class AuthResult
 {
     public bool Success { get; set; }
     public string Message { get; set; } = string.Empty;
     public string? Token { get; set; }
+    public DateTimeOffset? ExpiresAt { get; set; }
     public UserDto? User { get; set; }
 }
 

@@ -5,7 +5,8 @@ public record ExportDataDto(
     string UserEmail,
     List<MeterReadingExportDto> MeterReadings,
     List<BudgetExportDto> Budgets,
-    UserSettingsExportDto? UserSettings
+    UserSettingsExportDto? UserSettings,
+    UserSettingsDto? TariffSettings = null
 );
 
 public record MeterReadingExportDto(
@@ -44,7 +45,8 @@ public record ImportResultDto(
 public record ImportDataDto(
     List<MeterReadingImportDto> MeterReadings,
     List<BudgetImportDto> Budgets,
-    UserSettingsImportDto? UserSettings
+    UserSettingsImportDto? UserSettings,
+    UserSettingsDto? TariffSettings = null
 );
 
 public record MeterReadingImportDto(

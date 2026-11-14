@@ -8,6 +8,7 @@
 @inject AuthStateService AuthState
 @inject NavigationManager Nav
 @inject IJSRuntime JS
+@inject IServiceProvider Services
 
 <div class="settings-page">
 
@@ -155,6 +156,21 @@
             </div>
 
         </EditForm>
+
+        @if (_budgetPush is not null)
+        {
+            <section class="settings-section">
+                <h2 class="section-title">Budget push alerts</h2>
+                <p>Get a notification on this device when a new reading takes your estimated costs over budget.</p>
+                <button type="button" class="btn btn-secondary" disabled="@_updatingPush" @onclick="ToggleBudgetPushAsync">
+                    @(_budgetPush.IsEnabled ? "Turn off budget alerts" : "Turn on budget alerts")
+                </button>
+                @if (_pushMessage is not null)
+                {
+                    <p role="status">@_pushMessage</p>
+                }
+            </section>
+        }
     }
 
 </div>
@@ -163,6 +179,9 @@
     private NotificationSettingsDto _model = new();
     private bool _loading = true;
     private bool _saving;
+    private IBudgetPushSettings? _budgetPush;
+    private bool _updatingPush;
+    private string? _pushMessage;
     private string _successMessage = string.Empty;
     private string _errorMessage   = string.Empty;
 
@@ -182,8 +201,29 @@
             return;
         }
 
+        _budgetPush = Services.GetService(typeof(IBudgetPushSettings)) as IBudgetPushSettings;
         _model   = await NotifService.GetAsync(AuthState.CurrentUser!.Id);
         _loading = false;
+    }
+
+    private async Task ToggleBudgetPushAsync()
+    {
+        if (_budgetPush is null || _updatingPush)
+            return;
+
+        _updatingPush = true;
+        try
+        {
+            var enabled = !_budgetPush.IsEnabled;
+            var updated = await _budgetPush.SetEnabledAsync(enabled);
+            _pushMessage = updated
+                ? enabled ? "Budget alerts are turned on. This device will register with Firebase." : "Budget alerts are off on this device."
+                : "Could not update budget alerts. Check Android notification permissions and try again.";
+        }
+        finally
+        {
+            _updatingPush = false;
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)

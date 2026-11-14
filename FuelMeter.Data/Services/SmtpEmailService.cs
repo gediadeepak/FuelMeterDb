@@ -1,8 +1,10 @@
 using System.Net;
-using System.Net.Mail;
 using FuelMeter.Core.Options;
 using FuelMeter.Core.Services.Interfaces;
+using MailKit.Net.Smtp;
+using MailKit.Security;
 using Microsoft.Extensions.Options;
+using MimeKit;
 
 namespace FuelMeter.Data.Services;
 
@@ -12,25 +14,28 @@ public class SmtpEmailService(IOptions<EmailSettings> options) : IEmailService
 
     public async Task SendPasswordResetEmailAsync(string toEmail, string toName, string resetLink)
     {
-        var subject = "Reset your FuelMeter password";
-        var body    = BuildResetEmailHtml(toName, resetLink);
-
-        using var client = new SmtpClient(_settings.SmtpHost, _settings.SmtpPort)
+        using var message = new MimeMessage
         {
-            EnableSsl   = _settings.EnableSsl,
-            Credentials = new NetworkCredential(_settings.Username, _settings.Password)
+            Subject = "Reset your FuelMeter password",
+            Body = new TextPart("html")
+            {
+                Text = BuildResetEmailHtml(WebUtility.HtmlEncode(toName), WebUtility.HtmlEncode(resetLink))
+            }
         };
+        message.From.Add(new MailboxAddress(_settings.SenderName, _settings.SenderEmail));
+        message.To.Add(new MailboxAddress(toName, toEmail));
 
-        using var message = new MailMessage
-        {
-            From       = new MailAddress(_settings.SenderEmail, _settings.SenderName),
-            Subject    = subject,
-            Body       = body,
-            IsBodyHtml = true
-        };
-        message.To.Add(new MailAddress(toEmail, toName));
+        var security = _settings.SmtpPort == 465
+            ? SecureSocketOptions.SslOnConnect
+            : _settings.EnableSsl ? SecureSocketOptions.StartTls : SecureSocketOptions.None;
 
-        await client.SendMailAsync(message);
+        using var client = new SmtpClient();
+        await client.ConnectAsync(_settings.SmtpHost, _settings.SmtpPort, security);
+        if (!string.IsNullOrEmpty(_settings.Username))
+            await client.AuthenticateAsync(_settings.Username, _settings.Password);
+
+        await client.SendAsync(message);
+        await client.DisconnectAsync(quit: true);
     }
 
     private static string BuildResetEmailHtml(string name, string resetLink) => $"""

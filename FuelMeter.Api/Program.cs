@@ -1,13 +1,18 @@
 using System.Text;
+using FuelMeter.Api.Extensions;
 using FuelMeter.Api.Options;
 using FuelMeter.Api.Services;
 using FuelMeter.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddSingleton<FirebasePushService>();
+builder.Services.AddScoped<BudgetPushAlerts>();
 
 // ── Config ─────────────────────────────────────────────────────
 var jwtSection  = builder.Configuration.GetSection(JwtOptions.SectionName);
@@ -40,6 +45,20 @@ builder.Services
             ValidIssuer              = jwtIssuer,
             ValidAudience            = jwtAudience,
             IssuerSigningKey         = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
+        };
+
+        options.Events = new JwtBearerEvents
+        {
+            OnTokenValidated = async context =>
+            {
+                var userId = context.Principal?.GetUserId() ?? 0;
+                var db = context.HttpContext.RequestServices.GetRequiredService<FuelMeterDbContext>();
+                if (userId <= 0 || !await db.Users.AnyAsync(
+                    user => user.Id == userId && user.IsActive, context.HttpContext.RequestAborted))
+                {
+                    context.Fail("The account is unavailable.");
+                }
+            }
         };
     });
 

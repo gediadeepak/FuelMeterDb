@@ -86,7 +86,7 @@ public class MeterReadingService(FuelMeterDbContext db) : IMeterReadingService
 
         var readings = await query
             .OrderBy(r => r.FuelType)
-            .ThenBy(r => r.ReadingDate)
+            .ThenBy(r => r.ReadingDate).ThenBy(r => r.Id)
             .ToListAsync();
 
         // Load settings for rate lookup
@@ -97,7 +97,7 @@ public class MeterReadingService(FuelMeterDbContext db) : IMeterReadingService
         // Group by fuel type to calculate previous reading per group
         foreach (var group in readings.GroupBy(r => r.FuelType))
         {
-            var sorted = group.OrderBy(r => r.ReadingDate).ToList();
+            var sorted = group.ToList();
 
             for (int i = 0; i < sorted.Count; i++)
             {
@@ -105,10 +105,10 @@ public class MeterReadingService(FuelMeterDbContext db) : IMeterReadingService
 
                 // Previous reading: last reading before this one for same fuel type
                 decimal prevValue = i == 0
-                    ? await GetPreviousReadingAsync(userId, current.FuelType, current.ReadingDate)
+                    ? await GetPreviousReadingAsync(userId, current.FuelType, current.ReadingDate, current.ReadingValue)
                     : sorted[i - 1].ReadingValue;
 
-                decimal usage = Math.Max(0, current.ReadingValue - prevValue);
+                decimal usage = ReadingUsage.Between(prevValue, current.ReadingValue);
 
                 decimal rate = current.FuelType == "Electricity"
                     ? (settings?.ElectricityPricePerKwh ?? 0)
@@ -129,7 +129,7 @@ public class MeterReadingService(FuelMeterDbContext db) : IMeterReadingService
             }
         }
 
-        return rows.OrderByDescending(r => r.ReadingDate).ToList();
+        return rows.OrderByDescending(r => r.ReadingDate).ThenByDescending(r => r.Id).ToList();
     }
 
     // ── Get single by ID ────────────────────────────────────────
@@ -151,14 +151,14 @@ public class MeterReadingService(FuelMeterDbContext db) : IMeterReadingService
     }
 
     // ── Helpers ─────────────────────────────────────────────────
-    private async Task<decimal> GetPreviousReadingAsync(int userId, string fuelType, DateTime before)
+    private async Task<decimal> GetPreviousReadingAsync(int userId, string fuelType, DateTime before, decimal fallback)
     {
         var prev = await db.MeterReadings
             .Where(r => r.UserId == userId && r.FuelType == fuelType && r.ReadingDate < before)
-            .OrderByDescending(r => r.ReadingDate)
+            .OrderByDescending(r => r.ReadingDate).ThenByDescending(r => r.Id)
             .FirstOrDefaultAsync();
 
-        return prev?.ReadingValue ?? 0;
+        return prev?.ReadingValue ?? fallback;
     }
 
     private static SaveMeterReadingResult Ok(string msg) => new() { Success = true,  Message = msg };
@@ -181,41 +181,13 @@ public class MeterReadingService(FuelMeterDbContext db) : IMeterReadingService
             .OrderBy(r => r.ReadingDate)
             .ToListAsync();
 
-        decimal CalcUsage(string fuelType)
-        {
-            var group = monthReadings.Where(r => r.FuelType == fuelType).ToList();
-            if (group.Count == 0) return 0;
-
-            var firstInMonth = group.First().ReadingValue;
-            var lastInMonth  = group.Last().ReadingValue;
-
-            // Look for the most recent reading before this month.
-            var monthStart = new DateTime(year, month, 1);
-            var prev = db.MeterReadings
-                .Where(r => r.UserId == userId
-                         && r.FuelType == fuelType
-                         && r.ReadingDate < monthStart)
-                .OrderByDescending(r => r.ReadingDate)
-                .FirstOrDefault();
-
-            // Only trust the previous reading if it's recent enough (≤ 40 days before month start).
-            // Otherwise (gap too large, or no prior reading at all) fall back to last − first within the month
-            // to avoid attributing the entire lifetime meter delta to a single month.
-            decimal baseline;
-            if (prev != null && (monthStart - prev.ReadingDate).TotalDays <= 40)
-            {
-                baseline = prev.ReadingValue;
-            }
-            else
-            {
-                baseline = firstInMonth;
-            }
-
-            return Math.Max(0, lastInMonth - baseline);
-        }
-
-        var elecUsage = CalcUsage("Electricity");
-        var gasUsage  = CalcUsage("Gas");
+        var monthStart = new DateTime(year, month, 1);
+        var monthEnd = monthStart.AddMonths(1);
+        var elecUsage = await CalcPeriodUsageAsync(userId, "Electricity", monthStart, monthEnd);
+        var gasUsage = await CalcPeriodUsageAsync(userId, "Gas", monthStart, monthEnd);
+        var budgets = await db.Budgets.AsNoTracking()
+            .Where(b => b.UserId == userId && b.Year == year && b.Month == month)
+            .ToListAsync();
 
         var elecRate = settings?.ElectricityPricePerKwh ?? 0;
         var gasRate  = settings?.GasPricePerUnit        ?? 0;
@@ -236,7 +208,7 @@ public class MeterReadingService(FuelMeterDbContext db) : IMeterReadingService
             ElectricityCost           = elecUsageCost + elecStandingCost,
             ElectricityRate           = elecRate,
             ElectricityProvider       = settings?.ElectricityProvider ?? string.Empty,
-            ElectricityBudget         = settings?.ElectricityMonthlyBudget ?? 0,
+            ElectricityBudget         = budgets.FirstOrDefault(b => b.FuelType == "Electricity")?.BudgetLimit ?? settings?.ElectricityMonthlyBudget ?? 0,
 
             GasUsage          = gasUsage,
             GasUsageCost      = gasUsageCost,
@@ -245,7 +217,7 @@ public class MeterReadingService(FuelMeterDbContext db) : IMeterReadingService
             GasCost           = gasUsageCost + gasStandingCost,
             GasRate           = gasRate,
             GasProvider       = settings?.GasProvider ?? string.Empty,
-            GasBudget         = settings?.GasMonthlyBudget ?? 0,
+            GasBudget         = budgets.FirstOrDefault(b => b.FuelType == "Gas")?.BudgetLimit ?? settings?.GasMonthlyBudget ?? 0,
 
             CurrencySymbol = settings?.CurrencySymbol ?? "£",
             Month          = month,
@@ -287,25 +259,19 @@ public class MeterReadingService(FuelMeterDbContext db) : IMeterReadingService
                 // and the one just before it — difference = usage attributed to this day
                 foreach (var ft in new[] { "Electricity", "Gas" })
                 {
-                    var dayReading = readings
-                        .Where(r => r.FuelType == ft && r.ReadingDate.Date == date.Date)
-                        .OrderByDescending(r => r.ReadingDate)
-                        .FirstOrDefault();
+                    var dayReadings = readings
+                        .Where(r => r.FuelType == ft && r.ReadingDate.Date == date)
+                        .OrderBy(r => r.ReadingDate).ThenBy(r => r.Id)
+                        .ToList();
+                    if (dayReadings.Count == 0) continue;
 
-                    if (dayReading is null) continue;
+                    var previous = readings
+                        .Where(r => r.FuelType == ft && r.ReadingDate < date)
+                        .OrderByDescending(r => r.ReadingDate).ThenByDescending(r => r.Id)
+                        .FirstOrDefault()?.ReadingValue
+                        ?? await GetPreviousReadingAsync(userId, ft, monthStart, dayReadings[0].ReadingValue);
 
-                    var prevReading = readings
-                        .Where(r => r.FuelType == ft && r.ReadingDate.Date < date.Date)
-                        .OrderByDescending(r => r.ReadingDate)
-                        .FirstOrDefault()
-                        ?.ReadingValue
-                        ?? (await db.MeterReadings
-                            .Where(r => r.UserId == userId && r.FuelType == ft && r.ReadingDate < date)
-                            .OrderByDescending(r => r.ReadingDate)
-                            .FirstOrDefaultAsync())?.ReadingValue
-                        ?? dayReading.ReadingValue;
-
-                    decimal usage = Math.Max(0, dayReading.ReadingValue - prevReading);
+                    decimal usage = ReadingUsage.Total(dayReadings, previous);
                     if (ft == "Electricity") elecUsage = usage;
                     else                     gasUsage  = usage;
                 }
@@ -372,7 +338,7 @@ public class MeterReadingService(FuelMeterDbContext db) : IMeterReadingService
         var periodReadings = await db.MeterReadings
             .Where(r => r.UserId == userId && r.FuelType == fuelType
                      && r.ReadingDate >= periodStart && r.ReadingDate < periodEnd)
-            .OrderBy(r => r.ReadingDate)
+            .OrderBy(r => r.ReadingDate).ThenBy(r => r.Id)
             .ToListAsync();
 
         if (periodReadings.Count == 0) return 0;
@@ -380,10 +346,9 @@ public class MeterReadingService(FuelMeterDbContext db) : IMeterReadingService
         var firstInPeriod = periodReadings.First().ReadingValue;
         var prevReading   = (await db.MeterReadings
             .Where(r => r.UserId == userId && r.FuelType == fuelType && r.ReadingDate < periodStart)
-            .OrderByDescending(r => r.ReadingDate)
+            .OrderByDescending(r => r.ReadingDate).ThenByDescending(r => r.Id)
             .FirstOrDefaultAsync())?.ReadingValue ?? firstInPeriod;
 
-        var lastInPeriod = periodReadings.Last().ReadingValue;
-        return Math.Max(0, lastInPeriod - prevReading);
+        return ReadingUsage.Total(periodReadings, prevReading);
     }
 }

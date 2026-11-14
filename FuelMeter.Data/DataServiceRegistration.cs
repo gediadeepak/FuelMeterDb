@@ -1,5 +1,4 @@
 using FuelMeter.Core.Options;
-using FuelMeter.Core.Services;
 using FuelMeter.Core.Services.Interfaces;
 using FuelMeter.Data.Services;
 using Microsoft.EntityFrameworkCore;
@@ -25,7 +24,7 @@ public static class DataServiceRegistration
                 sql.CommandTimeout(60);
             }));
 
-        services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<AuthService>();
         services.AddScoped<ISettingsService, SettingsService>();
         services.AddScoped<IMeterReadingService, MeterReadingService>();
         services.AddScoped<INotificationSettingsService, NotificationSettingsService>();
@@ -45,7 +44,6 @@ public static class DataServiceRegistration
             opts.Username    = section["Username"]    ?? string.Empty;
             opts.Password    = section["Password"]    ?? string.Empty;
         });
-        services.AddSingleton<AuthStateService>();
 
         return services;
     }

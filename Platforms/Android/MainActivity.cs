@@ -2,6 +2,9 @@
 using Android.Content.PM;
 using Android.OS;
 using Android.Views;
+using FuelMeter.Core.Services;
+using FuelMeter.Core.Services.Interfaces;
+using FuelMeter.Services;
 
 namespace FuelMeter
 {
@@ -11,6 +14,14 @@ namespace FuelMeter
         protected override void OnCreate(Bundle? savedInstanceState)
         {
             base.OnCreate(null);
+
+            var services = IPlatformApplication.Current?.Services;
+            if (services?.GetService<IBudgetPushSettings>() is AndroidBudgetPushSettings push)
+            {
+                var auth = services.GetRequiredService<AuthStateService>();
+                auth.OnAuthStateChanged += push.Refresh;
+                push.Refresh();
+            }
 
             if (Window is not null)
             {
@@ -33,6 +44,15 @@ namespace FuelMeter
                 // Keep navigation bar branded
                 Window.SetNavigationBarColor(Android.Graphics.Color.ParseColor("#0D47A1"));
             }
+        }
+
+        protected override void OnDestroy()
+        {
+            var services = IPlatformApplication.Current?.Services;
+            if (services?.GetService<IBudgetPushSettings>() is AndroidBudgetPushSettings push)
+                services.GetRequiredService<AuthStateService>().OnAuthStateChanged -= push.Refresh;
+
+            base.OnDestroy();
         }
 
         protected override void OnSaveInstanceState(Bundle outState)

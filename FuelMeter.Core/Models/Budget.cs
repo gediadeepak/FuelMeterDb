@@ -13,6 +13,7 @@ public class Budget
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
+    public DateTime? PushAlertSentAt { get; set; }
 
     // Navigation
     public User User { get; set; } = null!;

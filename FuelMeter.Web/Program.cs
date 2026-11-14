@@ -15,16 +15,12 @@ builder.Services.AddRazorComponents()
 var apiBase = builder.Configuration["ApiSettings:BaseUrl"]
     ?? throw new InvalidOperationException("ApiSettings:BaseUrl is missing.");
 
-// ── Named HttpClient — bypass SSL for self-signed/invalid cert on deployed API ─
+// ── Named API HttpClient ─
 builder.Services.AddHttpClient("FuelMeterApi", client =>
 {
     client.BaseAddress = new Uri(apiBase);
     client.DefaultRequestHeaders.Add("User-Agent", "FuelMeterWeb/1.0");
     client.DefaultRequestHeaders.Add("Accept", "application/json");
-}).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
-{
-    ServerCertificateCustomValidationCallback =
-        HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
 });
 
 // ── ApiClientService is Scoped: same instance as AuthStateService per circuit ─
@@ -42,6 +38,7 @@ builder.Services.AddScoped<IAnomalyService,              HttpAnomalyService>();
 
 // ── Auth state (per Blazor Server circuit) ────────────────────────────────────
 builder.Services.AddScoped<AuthStateService>();
+builder.Services.AddScoped<IRememberedSessionStore, RememberedSessionStore>();
 
 // ── Web has no OS alarm API — use a no-op scheduler ────────────
 builder.Services.AddScoped<INotificationScheduler, NullNotificationScheduler>();
@@ -57,6 +54,8 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseAntiforgery();
+
+app.MapStaticAssets();
 
 app.MapRazorComponents<App>()
    .AddAdditionalAssemblies(typeof(Routes).Assembly)

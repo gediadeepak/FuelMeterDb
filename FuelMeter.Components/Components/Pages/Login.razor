@@ -47,6 +47,13 @@
                 <ValidationMessage For="() => _model.Password" class="validation-message" />
             </div>
 
+            <div class="form-group">
+                <label for="stay-signed-in">
+                    <InputCheckbox id="stay-signed-in" @bind-Value="_model.StaySignedIn" />
+                    Stay signed in
+                </label>
+            </div>
+
             <div class="button-row">
                 <button type="submit" class="btn btn-primary" disabled="@_isBusy">
                     @if (_isBusy)
@@ -70,10 +77,19 @@
 </div>
 
 @code {
+    [SupplyParameterFromQuery(Name = "deleteAccount")]
+    public bool? DeleteAccount { get; set; }
+
     private readonly LoginModel _model = new();
     private bool _isBusy;
     private bool _loginSuccess;
     private string _errorMessage = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        if (AuthState.IsAuthenticated)
+            Nav.NavigateTo(DeleteAccount is true ? "/delete-account" : "/dashboard", replace: true);
+    }
 
     private async Task HandleLoginAsync()
     {
@@ -86,15 +102,19 @@
             var result = await AuthService.LoginAsync(new LoginRequest
             {
                 Email    = _model.Email,
-                Password = _model.Password
+                Password = _model.Password,
+                StaySignedIn = _model.StaySignedIn
             });
 
             if (result.Success)
             {
-                AuthState.SetUser(result.User!, result.Token ?? string.Empty);
+                if (result.User is null || string.IsNullOrWhiteSpace(result.Token))
+                    throw new InvalidOperationException("The server did not return a valid session.");
+
+                await AuthState.SignInAsync(result.User, result.Token, result.ExpiresAt, _model.StaySignedIn);
                 _loginSuccess = true;
                 await Task.Delay(600);
-                Nav.NavigateTo("/dashboard");
+                Nav.NavigateTo(DeleteAccount is true ? "/delete-account" : "/dashboard");
             }
             else
             {
