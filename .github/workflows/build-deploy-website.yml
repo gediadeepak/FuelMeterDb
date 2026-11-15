@@ -1,0 +1,56 @@
+name: Build and Deploy Website
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    secrets:
+      WEBSITE_FTP_USERNAME:
+        required: true
+      WEBSITE_FTP_PASSWORD:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-deploy:
+    name: Build and deploy website
+    if: github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+    concurrency:
+      group: plesk-website
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore Website
+        run: dotnet restore FuelMeter.Web/FuelMeter.Web.csproj
+
+      - name: Publish Website
+        run: dotnet publish FuelMeter.Web/FuelMeter.Web.csproj -c Release --no-restore -o publish/website
+
+      - name: Smoke test website and prepare publish files
+        shell: pwsh
+        run: ./.github/scripts/Test-Publish.ps1 -Application Website -Directory publish/website
+
+      - name: Deploy website to Plesk
+        uses: SamKirkland/FTP-Deploy-Action@v4.4.0
+        with:
+          server: ftp.shrijiitservices.com
+          username: ${{ secrets.WEBSITE_FTP_USERNAME }}
+          password: ${{ secrets.WEBSITE_FTP_PASSWORD }}
+          protocol: ftp
+          port: 21
+          local-dir: ./publish/website/
+          server-dir: /
+          state-name: .fuelmeter-release-sync-state.json
+
+      - name: Check the deployed website
+        run: curl.exe --fail --silent --show-error --output NUL --max-time 15 --retry 5 --retry-all-errors https://fuelmeter.shrijiitservices.com/

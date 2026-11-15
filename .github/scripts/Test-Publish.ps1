@@ -7,10 +7,15 @@ $ErrorActionPreference = 'Stop'
 $publishDirectory = (Resolve-Path -LiteralPath $Directory).Path
 $assembly = if ($Application -eq 'API') { 'FuelMeter.Api' } else { 'FuelMeter.Web' }
 
-foreach ($file in "$assembly.dll", "$assembly.runtimeconfig.json", 'web.config') {
+foreach ($file in "$assembly.dll", "$assembly.runtimeconfig.json", 'web.config', 'appsettings.json') {
     if (!(Test-Path -LiteralPath (Join-Path $publishDirectory $file) -PathType Leaf)) {
         throw "The publish directory is missing $file."
     }
+}
+
+$developmentSettings = Join-Path $publishDirectory 'appsettings.Development.json'
+if (Test-Path -LiteralPath $developmentSettings -PathType Leaf) {
+    Remove-Item -LiteralPath $developmentSettings
 }
 
 # These startup checks do not need a working database or any production settings.
@@ -77,7 +82,3 @@ finally {
     }
     Remove-Item -LiteralPath $stdout,$stderr -ErrorAction SilentlyContinue
 }
-
-# Plesk supplies production configuration. Keep source configuration out of release artifacts.
-Get-ChildItem -LiteralPath $publishDirectory -Filter 'appsettings*.json' -File |
-    Remove-Item

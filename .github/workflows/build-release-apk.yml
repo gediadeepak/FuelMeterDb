@@ -1,0 +1,117 @@
+name: Build and Release APK
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    secrets:
+      ANDROID_KEYSTORE_BASE64:
+        required: false
+      ANDROID_KEY_ALIAS:
+        required: false
+      ANDROID_KEY_PASSWORD:
+        required: false
+      ANDROID_KEYSTORE_PASSWORD:
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  build-android:
+    name: Build and release Android APK
+    if: github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install MAUI Workloads
+        run: dotnet workload install maui
+
+      - name: Restore Workloads
+        run: dotnet workload restore FuelMeter.csproj
+
+      - name: Publish Android APK
+        id: apk
+        shell: pwsh
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          $signingValues = @($env:KEYSTORE_BASE64, $env:KEY_ALIAS, $env:KEY_PASSWORD, $env:KEYSTORE_PASSWORD)
+          $configuredValues = @($signingValues | Where-Object { ![string]::IsNullOrWhiteSpace($_) })
+          $releaseSigning = $configuredValues.Count -eq $signingValues.Count
+          if ($configuredValues.Count -gt 0 -and !$releaseSigning) {
+            throw 'The Android signing secrets are incomplete.'
+          }
+
+          $publishDirectory = Join-Path $env:GITHUB_WORKSPACE 'publish/android'
+          $publishArgs = @(
+            'publish', 'FuelMeter.csproj', '-f', 'net10.0-android', '-c', 'Release',
+            '-p:AndroidPackageFormats=apk', '-o', $publishDirectory
+          )
+          $keystore = Join-Path $env:RUNNER_TEMP 'fuelmeter-release.keystore'
+          try {
+            if ($releaseSigning) {
+              [IO.File]::WriteAllBytes($keystore, [Convert]::FromBase64String($env:KEYSTORE_BASE64))
+              $publishArgs += @(
+                '-p:AndroidKeyStore=true', "-p:AndroidSigningKeyStore=$keystore",
+                "-p:AndroidSigningKeyAlias=$env:KEY_ALIAS",
+                '-p:AndroidSigningKeyPass=env:KEY_PASSWORD',
+                '-p:AndroidSigningStorePass=env:KEYSTORE_PASSWORD'
+              )
+            }
+
+            dotnet @publishArgs
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          } finally {
+            if (Test-Path -LiteralPath $keystore -PathType Leaf) {
+              Remove-Item -LiteralPath $keystore
+            }
+          }
+
+          $signedApks = @(Get-ChildItem -LiteralPath $publishDirectory -Filter '*-Signed.apk' -File)
+          if ($signedApks.Count -ne 1) { throw 'Expected exactly one signed Android APK.' }
+          Copy-Item -LiteralPath $signedApks[0].FullName -Destination (Join-Path $publishDirectory 'FuelMeter.apk')
+          "release_signing=$($releaseSigning.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: publish/android/FuelMeter.apk
+          if-no-files-found: error
+
+      - name: Publish APK to GitHub Releases
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SIGNING: ${{ steps.apk.outputs.release_signing }}
+        run: |
+          $tag = "android-$env:GITHUB_RUN_ID"
+          $apk = 'publish/android/FuelMeter.apk'
+          gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag $apk --repo $env:GITHUB_REPOSITORY --clobber
+            exit $LASTEXITCODE
+          }
+
+          $releaseArgs = @(
+            'release', 'create', $tag, $apk, '--repo', $env:GITHUB_REPOSITORY,
+            '--target', $env:GITHUB_SHA, '--title', "FuelMeter Android $env:GITHUB_RUN_ID"
+          )
+          if ($env:RELEASE_SIGNING -eq 'true') {
+            $releaseArgs += @('--notes', 'FuelMeter Android APK signed with the release keystore.')
+          } else {
+            $releaseArgs += @('--prerelease', '--latest=false', '--notes', 'Test APK signed with the GitHub runner debug key.')
+          }
+          gh @releaseArgs
+          exit $LASTEXITCODE

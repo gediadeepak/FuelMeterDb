@@ -1,0 +1,39 @@
+name: Build and Deploy Website, API and APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fuelmeter-web-release
+  cancel-in-progress: false
+
+jobs:
+  api:
+    name: API
+    uses: ./.github/workflows/build-deploy-api.yml
+    secrets:
+      API_FTP_USERNAME: ${{ secrets.API_FTP_USERNAME }}
+      API_FTP_PASSWORD: ${{ secrets.API_FTP_PASSWORD }}
+      API_DATABASE_CONNECTION: ${{ secrets.API_DATABASE_CONNECTION }}
+
+  website:
+    name: Website
+    needs: api
+    uses: ./.github/workflows/build-deploy-website.yml
+    secrets:
+      WEBSITE_FTP_USERNAME: ${{ secrets.WEBSITE_FTP_USERNAME }}
+      WEBSITE_FTP_PASSWORD: ${{ secrets.WEBSITE_FTP_PASSWORD }}
+
+  apk:
+    name: Android APK
+    permissions:
+      contents: write
+    uses: ./.github/workflows/build-release-apk.yml
+    secrets:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
