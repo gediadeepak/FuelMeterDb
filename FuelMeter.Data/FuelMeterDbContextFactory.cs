@@ -10,9 +10,11 @@ public class FuelMeterDbContextFactory : IDesignTimeDbContextFactory<FuelMeterDb
 {
     public FuelMeterDbContext CreateDbContext(string[] args)
     {
+        var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__FuelMeterDb")
+            ?? @"Server=(localdb)\MSSQLLocalDB;Database=FuelMeter;Trusted_Connection=True";
+
         var options = new DbContextOptionsBuilder<FuelMeterDbContext>()
-            .UseSqlServer(
-                "Server=fuelmeter.shrijiitservices.com;Database=fuelmeterdb_live;User Id=fuelmeterdb;Password=Nn_S?id5jKb7e1mg;TrustServerCertificate=false;MultipleActiveResultSets=True;Encrypt=False;")
+            .UseSqlServer(connectionString)
             .Options;
 
         return new FuelMeterDbContext(options);

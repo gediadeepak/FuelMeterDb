@@ -4,8 +4,11 @@ on:
   workflow_call:
     inputs:
       build_run_id:
-        required: true
+        required: false
         type: string
+      use_current_build:
+        type: boolean
+        default: false
       dry_run:
         required: true
         type: boolean
@@ -23,6 +26,8 @@ on:
         required: true
       ftp_password:
         required: true
+      database_connection:
+        required: false
 
 permissions:
   actions: read
@@ -36,35 +41,53 @@ jobs:
       group: plesk-${{ inputs.application }}
       cancel-in-progress: false
     steps:
-      - name: Verify the selected CI run
+      - name: Select the tested build
+        if: ${{ !inputs.use_current_build }}
+        id: build
         env:
           GH_TOKEN: ${{ github.token }}
           BUILD_RUN_ID: ${{ inputs.build_run_id }}
         run: |
           set -euo pipefail
-          if [[ ! "$BUILD_RUN_ID" =~ ^[0-9]+$ ]]; then
-            echo "::error::Enter the numeric run ID from a Build FuelMeter run."
+          runs_endpoint="repos/$GITHUB_REPOSITORY/actions"
+          if [[ -z "$BUILD_RUN_ID" ]]; then
+            runs=$(gh api --method GET "$runs_endpoint/workflows/dotnet-desktop.yml/runs" \
+              -f branch=main -f status=success -F per_page=100)
+          elif [[ "$BUILD_RUN_ID" =~ ^[0-9]+$ ]]; then
+            if ! runs=$(gh api "$runs_endpoint/runs/$BUILD_RUN_ID"); then
+              echo "::error::Could not look up run $BUILD_RUN_ID. Paste the ID from the build URL or leave the field blank."
+              exit 1
+            fi
+          else
+            echo "::error::Paste the numeric run ID from the build URL or leave the field blank."
             exit 1
           fi
-          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN_ID" |
-            jq -e --arg repo "$GITHUB_REPOSITORY" '
-              .path == ".github/workflows/dotnet-desktop.yml" and
-              .conclusion == "success" and
-              .head_branch == "main" and
-              .head_repository.full_name == $repo and
-              (.event == "push" or .event == "workflow_dispatch")
-            ' >/dev/null || {
-              echo "::error::Select a successful Build FuelMeter run from this repository's main branch."
-              exit 1
-            }
+
+          run_id=$(jq -er --arg repo "$GITHUB_REPOSITORY" '
+            (.workflow_runs // [.])
+            | map(select(
+                .path == ".github/workflows/dotnet-desktop.yml" and
+                .conclusion == "success" and
+                .head_branch == "main" and
+                .head_repository.full_name == $repo and
+                (.event == "push" or .event == "workflow_dispatch")
+              ))
+            | max_by([.created_at, .id]).id // empty
+          ' <<< "$runs") || {
+            echo "::error::No matching successful Build FuelMeter run from this repository's main branch."
+            exit 1
+          }
+
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          echo "Build FuelMeter run [$run_id]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$run_id)" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Download the tested build
         uses: actions/download-artifact@v8
         with:
           name: ${{ inputs.artifact }}
           path: publish
-          github-token: ${{ github.token }}
-          run-id: ${{ inputs.build_run_id }}
+          github-token: ${{ !inputs.use_current_build && github.token || '' }}
+          run-id: ${{ steps.build.outputs.run_id || github.run_id }}
 
       - name: Verify the publish package
         env:
@@ -84,7 +107,17 @@ jobs:
             exit 1
           fi
 
-      - name: Sync build to Plesk
+      - name: Download the API migration bundle
+        if: inputs.application == 'api'
+        uses: actions/download-artifact@v8
+        with:
+          name: api-migrations
+          path: migrations
+          github-token: ${{ !inputs.use_current_build && github.token || '' }}
+          run-id: ${{ steps.build.outputs.run_id || github.run_id }}
+
+      - name: Preview Plesk file changes
+        if: inputs.dry_run || inputs.application == 'api'
         uses: SamKirkland/FTP-Deploy-Action@v4.4.0
         with:
           server: ftp.shrijiitservices.com
@@ -96,7 +129,41 @@ jobs:
           local-dir: ./publish/
           server-dir: /
           state-name: .fuelmeter-release-sync-state.json
-          dry-run: ${{ inputs.dry_run }}
+          dry-run: true
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+            **/appsettings*.json
+            web.config
+
+      - name: Apply production database migrations
+        if: inputs.application == 'api' && !inputs.dry_run
+        env:
+          DATABASE_CONNECTION: ${{ secrets.database_connection }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$DATABASE_CONNECTION" =~ [^[:space:]] ]]; then
+            echo '::error::Set the API_DATABASE_CONNECTION secret before releasing the API.'
+            exit 1
+          fi
+
+          chmod +x migrations/fuelmeter-sql-migrations
+          ./migrations/fuelmeter-sql-migrations --connection "$DATABASE_CONNECTION"
+
+      - name: Sync build to Plesk
+        if: ${{ !inputs.dry_run }}
+        uses: SamKirkland/FTP-Deploy-Action@v4.4.0
+        with:
+          server: ftp.shrijiitservices.com
+          username: ${{ secrets.ftp_username }}
+          password: ${{ secrets.ftp_password }}
+          protocol: ftps
+          security: strict
+          port: 21
+          local-dir: ./publish/
+          server-dir: /
+          state-name: .fuelmeter-release-sync-state.json
           exclude: |
             **/.git*
             **/.git*/**

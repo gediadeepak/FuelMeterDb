@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       build_run_id:
-        description: Successful Build FuelMeter run ID from main
-        required: true
+        description: Leave blank for the latest successful main build, or paste the run ID from its URL
+        required: false
         type: string
       dry_run:
-        description: Preview Plesk file changes without uploading
+        description: Preview Plesk file changes without uploading or applying migrations
         type: boolean
         default: true
 
@@ -27,3 +27,4 @@ jobs:
     secrets:
       ftp_username: ${{ secrets.API_FTP_USERNAME }}
       ftp_password: ${{ secrets.API_FTP_PASSWORD }}
+      database_connection: ${{ secrets.API_DATABASE_CONNECTION }}

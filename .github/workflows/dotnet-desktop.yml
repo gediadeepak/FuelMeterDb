@@ -9,6 +9,12 @@ on:
 
   workflow_dispatch:
 
+  workflow_call:
+    inputs:
+      web_only:
+        type: boolean
+        default: false
+
 jobs:
 
   build-api:
@@ -30,18 +36,23 @@ jobs:
       - name: Publish API
         run: dotnet publish FuelMeter.Api/FuelMeter.Api.csproj -c Release --no-restore -o publish/api
 
-      - name: Check that model changes have a migration
+      - name: Validate and package database migrations
         shell: pwsh
         run: |
           $toolPath = Join-Path $env:RUNNER_TEMP 'ef-tools'
           dotnet tool install dotnet-ef --version 10.0.7 --tool-path $toolPath
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $ef = Join-Path $toolPath 'dotnet-ef.exe'
           $migrationArgs = @(
-            'migrations', 'has-pending-model-changes', '--configuration', 'Release', '--no-build',
+            '--configuration', 'Release', '--no-build',
             '--project', 'FuelMeter.Data/FuelMeter.Data.csproj',
             '--startup-project', 'FuelMeter.Api/FuelMeter.Api.csproj'
           )
-          & (Join-Path $toolPath 'dotnet-ef.exe') @migrationArgs
+          & $ef migrations has-pending-model-changes @migrationArgs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          & $ef migrations bundle @migrationArgs --self-contained --target-runtime linux-x64 `
+            --output publish/migrations/fuelmeter-sql-migrations
           exit $LASTEXITCODE
 
       - name: Smoke test API and prepare artifact
@@ -53,6 +64,13 @@ jobs:
         with:
           name: api-build
           path: publish/api
+          if-no-files-found: error
+
+      - name: Upload API migration bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-migrations
+          path: publish/migrations/fuelmeter-sql-migrations
           if-no-files-found: error
 
   build-website:
@@ -86,6 +104,7 @@ jobs:
           if-no-files-found: error
 
   build-android:
+    if: ${{ !inputs.web_only }}
     name: Build Android APK
     runs-on: windows-latest
 
@@ -115,6 +134,7 @@ jobs:
             **/bin/Release/net10.0-android/**/*.apk
 
   build-windows:
+    if: ${{ !inputs.web_only }}
     name: Build Windows
     runs-on: windows-latest
 
@@ -146,6 +166,7 @@ jobs:
             **/bin/Release/net10.0-windows10.0.19041.0/**/*.json
 
   publish-windows-self-contained:
+    if: ${{ !inputs.web_only }}
     name: Publish Windows Self Contained EXE
     runs-on: windows-latest
 
@@ -183,6 +204,7 @@ jobs:
             **/bin/Release/net10.0-windows10.0.19041.0/**/*.json
 
   publish-windows-msix:
+    if: ${{ !inputs.web_only }}
     name: Publish Windows MSIX
     runs-on: windows-latest
 

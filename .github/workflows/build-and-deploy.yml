@@ -1,0 +1,54 @@
+name: Build and Deploy API and Website
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Build and preview both releases without uploading or applying migrations
+        type: boolean
+        default: true
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: fuelmeter-web-release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build API and website
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/dotnet-desktop.yml
+    with:
+      web_only: true
+
+  deploy-api:
+    name: Deploy API
+    needs: build
+    uses: ./.github/workflows/deploy-plesk.yml
+    with:
+      use_current_build: true
+      dry_run: ${{ inputs.dry_run }}
+      artifact: api-build
+      application: api
+      health_url: https://fuelmeter.api.shrijiitservices.com/openapi/v1.json
+    secrets:
+      ftp_username: ${{ secrets.API_FTP_USERNAME }}
+      ftp_password: ${{ secrets.API_FTP_PASSWORD }}
+      database_connection: ${{ secrets.API_DATABASE_CONNECTION }}
+
+  deploy-website:
+    name: Deploy Website
+    needs: deploy-api
+    uses: ./.github/workflows/deploy-plesk.yml
+    with:
+      use_current_build: true
+      dry_run: ${{ inputs.dry_run }}
+      artifact: website-build
+      application: website
+      health_url: https://fuelmeter.shrijiitservices.com/
+    secrets:
+      ftp_username: ${{ secrets.WEBSITE_FTP_USERNAME }}
+      ftp_password: ${{ secrets.WEBSITE_FTP_PASSWORD }}

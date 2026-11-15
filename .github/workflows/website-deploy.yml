@@ -4,8 +4,8 @@ on:
   workflow_dispatch:
     inputs:
       build_run_id:
-        description: Successful Build FuelMeter run ID from main
-        required: true
+        description: Leave blank for the latest successful main build, or paste the run ID from its URL
+        required: false
         type: string
       dry_run:
         description: Preview Plesk file changes without uploading
