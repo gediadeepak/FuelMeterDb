@@ -45,10 +45,18 @@ public class ChartBarDto
     public decimal ElectricityCost  { get; set; }
     public decimal GasUsage         { get; set; }
     public decimal GasCost          { get; set; }
+    public DateTime? ReadingDate { get; set; }
+    public DateTime? ElectricityReadingFrom { get; set; }
+    public DateTime? GasReadingFrom { get; set; }
+    public decimal? ElectricityStandingCost { get; set; }
+    public decimal? GasStandingCost { get; set; }
+    public decimal? ElectricityBudget { get; set; }
+    public decimal? GasBudget { get; set; }
 }
 
 public class UsageChartDto
 {
+    public bool HasReadingIntervals { get; set; }
     public List<ChartBarDto> Bars          { get; set; } = [];
     public string            CurrencySymbol { get; set; } = "£";
     public string            UsageUnit     { get; set; } = "kWh / units";

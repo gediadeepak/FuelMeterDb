@@ -2,31 +2,28 @@ name: Deploy API
 
 on:
   workflow_dispatch:
+    inputs:
+      build_run_id:
+        description: Successful Build FuelMeter run ID from main
+        required: true
+        type: string
+      dry_run:
+        description: Preview Plesk file changes without uploading
+        type: boolean
+        default: true
+
+permissions:
+  actions: read
 
 jobs:
-  deploy-api:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Publish API
-        run: dotnet publish FuelMeter.Api/FuelMeter.Api.csproj -c Release -o ./publish-api
-
-      - name: Verify Published Files
-        run: ls -la ./publish-api
-
-      - name: Deploy API to Plesk
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: ftp.shrijiitservices.com
-          username: fuelmeter_api
-          password: Y1mz3Fe$WXff7B5K
-          local-dir: ./publish-api/
-          server-dir: /
+  deploy:
+    uses: ./.github/workflows/deploy-plesk.yml
+    with:
+      build_run_id: ${{ inputs.build_run_id }}
+      dry_run: ${{ inputs.dry_run }}
+      artifact: api-build
+      application: api
+      health_url: https://fuelmeter.api.shrijiitservices.com/openapi/v1.json
+    secrets:
+      ftp_username: ${{ secrets.API_FTP_USERNAME }}
+      ftp_password: ${{ secrets.API_FTP_PASSWORD }}

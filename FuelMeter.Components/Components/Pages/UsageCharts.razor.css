@@ -1,0 +1,6 @@
+.usage-graph-legend { display: flex; flex-wrap: wrap; gap: .5rem 1rem; margin: 0 0 .75rem; font-size: .875rem; }
+.usage-graph-legend span { display: inline-flex; align-items: center; gap: .35rem; }
+.usage-graph-legend i { display: inline-block; width: 1rem; height: .65rem; background: var(--graph-accent); }
+.usage-graph-legend .standing { opacity: .35; }
+.usage-graph-legend .budget { background: transparent; height: 0; border-top: 2px dashed #98501d; }
+.chart-table-wrap { margin-top: .75rem; }

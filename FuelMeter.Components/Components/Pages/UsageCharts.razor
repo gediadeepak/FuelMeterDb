@@ -1,150 +1,165 @@
 @page "/usage-charts"
-@using FuelMeter.Core.DTOs
-@using FuelMeter.Core.Services
-@using FuelMeter.Core.Services.Interfaces
 @layout MainLayout
 @inject IMeterReadingService MeterService
 @inject AuthStateService AuthState
 @inject NavigationManager Nav
-@inject IJSRuntime JS
 
 <div class="charts-page">
-
     <div class="settings-header">
-        <h1 class="settings-title"><i data-lucide="trending-up" class="bi" aria-hidden="true"></i> Usage Charts</h1>
-        <p class="settings-subtitle">Electricity &amp; gas usage and cost visualised over time.</p>
+        <h1 class="settings-title">Usage charts</h1>
     </div>
 
-    <!-- ── Controls ── -->
     <div class="chart-controls">
-        <!-- View toggle -->
-        <div class="chart-view-tabs">
-            @foreach (var v in new[] { "Daily", "Monthly", "Yearly" })
+        <div class="chart-view-tabs" aria-label="Chart period">
+            @foreach (var view in new[] { "Daily", "Monthly", "Yearly" })
             {
-                <button class="chart-tab @(_view == v ? "chart-tab-active" : "")"
-                        @onclick="() => SetView(v)">@v</button>
+                <button type="button" class="chart-tab @(_view == view ? "chart-tab-active" : "")"
+                        aria-pressed="@(_view == view ? "true" : "false")"
+                        @onclick="() => SetViewAsync(view)">@view</button>
             }
         </div>
 
-        <!-- Year picker -->
         <div class="chart-control-group">
-            <label>Year</label>
-            <select class="form-control chart-select" @bind="_year" @bind:after="LoadAsync">
-                @for (int y = DateTime.Today.Year; y >= DateTime.Today.Year - 4; y--)
+            <label for="chart-year">Year</label>
+            <select id="chart-year" class="form-control chart-select" @bind="_year" @bind:after="LoadAsync">
+                @for (var year = DateTime.Today.Year; year >= DateTime.Today.Year - 4; year--)
                 {
-                    <option value="@y">@y</option>
+                    <option value="@year">@year</option>
                 }
             </select>
         </div>
 
-        <!-- Month picker (Daily only) -->
         @if (_view == "Daily")
         {
             <div class="chart-control-group">
-                <label>Month</label>
-                <select class="form-control chart-select" @bind="_month" @bind:after="LoadAsync">
-                    @for (int m = 1; m <= 12; m++)
+                <label for="chart-month">Month</label>
+                <select id="chart-month" class="form-control chart-select" @bind="_month" @bind:after="LoadAsync">
+                    @for (var month = 1; month <= 12; month++)
                     {
-                        <option value="@m">@(new DateTime(2000, m, 1).ToString("MMMM"))</option>
+                        <option value="@month">@(new DateTime(2000, month, 1).ToString("MMMM"))</option>
                     }
                 </select>
             </div>
         }
 
-        <!-- Metric toggle -->
         <div class="chart-control-group">
-            <label>Show</label>
-            <select class="form-control chart-select" @bind="_metric">
+            <label for="chart-metric">Show</label>
+            <select id="chart-metric" class="form-control chart-select" @bind="_metric" @bind:after="ChangeMetricAsync">
                 <option value="Usage">Usage</option>
-                <option value="Cost">Cost</option>
+                <option value="Cost">Usage charges</option>
+                <option value="Spending">Monthly spending vs budget</option>
             </select>
         </div>
     </div>
 
     @if (_loading)
     {
-        <div class="settings-loading">Loading chart data…</div>
+        <p class="settings-loading" role="status">Loading chart data…</p>
+    }
+    else if (_error)
+    {
+        <div class="dash-no-readings" role="alert">
+            <p>FuelMeter could not load the chart data.</p>
+            <button type="button" class="btn btn-outline-primary" @onclick="LoadAsync">Try again</button>
+        </div>
     }
     else if (_data is null || _data.Bars.Count == 0)
     {
-        <div class="dash-no-readings"><i data-lucide="inbox" class="bi" aria-hidden="true"></i> No readings found for this period.</div>
+        <p class="dash-no-readings">No readings found for this period.</p>
+    }
+    else if (IsSpending && _data.Bars.All(bar => bar.ElectricityStandingCost is null))
+    {
+        <p class="dash-no-readings">Monthly spending details are unavailable.</p>
     }
     else
     {
-        <!-- ── Electricity Bar Chart ── -->
-        <div class="chart-card chart-card-full">
-            <div class="chart-card-header">
-                <span class="chart-card-title blue"><i data-lucide="zap" class="bi" aria-hidden="true"></i> Electricity — @_metric
-                    @(_metric == "Usage" ? "(kWh)" : $"({_data.CurrencySymbol})")</span>
-                <span class="chart-card-total blue">
-                    Total: @(_metric == "Usage"
-                        ? _data.Bars.Sum(b => b.ElectricityUsage).ToString("N1") + " kWh"
-                        : _data.CurrencySymbol + _data.Bars.Sum(b => b.ElectricityCost).ToString("N2"))
-                </span>
-            </div>
-            @RenderBarChart(isElectricity: true)
-        </div>
+        @if (ShowIntervals)
+        {
+            <p class="settings-subtitle">Each bar totals usage between two readings. The last reading determines which month the interval appears in.</p>
+        }
+        @if (IsSpending)
+        {
+            <p class="settings-subtitle">Estimates use your saved tariff and include standing charges for the full month. Future months show any budget you’ve set.</p>
+        }
 
-        <!-- ── Gas Bar Chart ── -->
-        <div class="chart-card chart-card-full">
-            <div class="chart-card-header">
-                <span class="chart-card-title green"><i data-lucide="flame" class="bi" aria-hidden="true"></i> Gas — @_metric
-                    @(_metric == "Usage" ? "(units)" : $"({_data.CurrencySymbol})")</span>
-                <span class="chart-card-total green">
-                    Total: @(_metric == "Usage"
-                        ? _data.Bars.Sum(b => b.GasUsage).ToString("N1") + " units"
-                        : _data.CurrencySymbol + _data.Bars.Sum(b => b.GasCost).ToString("N2"))
-                </span>
-            </div>
-            @RenderBarChart(isElectricity: false)
-        </div>
+        @foreach (var electricity in new[] { true, false })
+        {
+            var fuel = electricity ? "Electricity" : "Gas";
+            var points = GetPoints(electricity);
+            var color = electricity ? "#185fad" : "#27713a";
+            var title = $"{fuel} · {MetricLabel}";
+            <section class="chart-card chart-card-full" aria-label="@title">
+                <div class="chart-card-header">
+                    <h2 class="chart-card-title">@title (@(IsUsage ? UsageUnit(electricity) : _data.CurrencySymbol))</h2>
+                    @if (points.Count > 0)
+                    {
+                        <span class="chart-card-total">Total @FormatValue(points.Sum(point => point.Value + point.Standing), electricity)</span>
+                    }
+                </div>
+                @if (IsSpending)
+                {
+                    <div class="usage-graph-legend" style="--graph-accent: @color">
+                        <span><i aria-hidden="true"></i> Usage charges</span>
+                        <span><i class="standing" aria-hidden="true"></i> Standing charges</span>
+                        <span><i class="budget" aria-hidden="true"></i> Budget</span>
+                    </div>
+                }
+                <UsageGraph @key="(_data, electricity, _metric)" Points="points" Title="@title" Color="@color" />
+            </section>
+        }
 
-        <!-- ── Combined table ── -->
-        <div class="chart-card chart-card-full">
-            <div class="chart-card-header">
-                <span class="chart-card-title"><i data-lucide="clipboard-list" class="bi" aria-hidden="true"></i> Data Table</span>
-            </div>
+        <details class="chart-card chart-card-full">
+            <summary class="chart-card-title">Data table</summary>
             <div class="chart-table-wrap">
                 <table class="chart-table">
                     <thead>
                         <tr>
-                            <th>Period</th>
-                            <th class="blue">Elec Usage (kWh)</th>
-                            <th class="blue">Elec Cost</th>
-                            <th class="green">Gas Usage (units)</th>
-                            <th class="green">Gas Cost</th>
+                            <th scope="col">Period</th>
+                            <th scope="col">Electricity</th>
+                            <th scope="col">Gas</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach (var bar in _data.Bars)
                         {
+                            if (ShowIntervals && bar.ElectricityReadingFrom is null && bar.GasReadingFrom is null)
+                                continue;
+
                             <tr>
-                                <td>@bar.Label</td>
-                                <td class="blue">@bar.ElectricityUsage.ToString("N1")</td>
-                                <td class="blue">@_data.CurrencySymbol@bar.ElectricityCost.ToString("N2")</td>
-                                <td class="green">@bar.GasUsage.ToString("N1")</td>
-                                <td class="green">@_data.CurrencySymbol@bar.GasCost.ToString("N2")</td>
+                                <th scope="row">@(bar.ReadingDate?.ToString("d MMM") ?? bar.Label)</th>
+                                <td>@TableValue(bar, true)</td>
+                                <td>@TableValue(bar, false)</td>
                             </tr>
                         }
                     </tbody>
                 </table>
             </div>
-        </div>
+        </details>
     }
-
 </div>
 
 @code {
     private UsageChartDto? _data;
-    private bool   _loading = true;
-    private string _view    = "Monthly";
-    private string _metric  = "Usage";
-    private int    _year    = DateTime.Today.Year;
-    private int    _month   = DateTime.Today.Month;
+    private bool _loading = true;
+    private bool _error;
+    private string _view = "Monthly";
+    private string _metric = "Usage";
+    private int _year = DateTime.Today.Year;
+    private int _month = DateTime.Today.Month;
+    private int _request;
+
+    private bool IsSpending => _metric == "Spending";
+    private bool IsUsage => _metric == "Usage";
+    private bool ShowIntervals => _view == "Daily" && _data?.HasReadingIntervals == true;
+    private string MetricLabel => _metric switch
+    {
+        "Spending" => "Estimated spending",
+        "Cost" => "Usage charges",
+        _ => "Usage"
+    };
 
     protected override async Task OnInitializedAsync()
     {
-        // Check authentication before loading data
         if (!AuthState.IsAuthenticated)
         {
             Nav.NavigateTo("/login");
@@ -154,130 +169,120 @@
         await LoadAsync();
     }
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    private Task SetViewAsync(string view)
     {
-        try { await JS.InvokeVoidAsync("lucide.createIcons"); } catch { }
+        _view = view;
+        if (view != "Monthly" && IsSpending)
+            _metric = "Cost";
+
+        return LoadAsync();
     }
 
-    private async Task SetView(string v)
-    {
-        _view = v;
-        await LoadAsync();
-    }
+    private Task ChangeMetricAsync() => IsSpending && _view != "Monthly"
+        ? SetViewAsync("Monthly")
+        : Task.CompletedTask;
 
     private async Task LoadAsync()
     {
-        if (!AuthState.IsAuthenticated) return;
+        if (AuthState.CurrentUser is not { } user)
+            return;
+
+        var request = ++_request;
         _loading = true;
+        _error = false;
         try
         {
-            _data = await MeterService.GetUsageChartAsync(
-                AuthState.CurrentUser!.Id, _view, _year,
-                _view == "Daily" ? _month : null);
+            var data = await MeterService.GetUsageChartAsync(user.Id, _view, _year, _view == "Daily" ? _month : null);
+            if (request == _request)
+                _data = data;
         }
-        catch { _data = null; }
-        finally { _loading = false; }
+        catch (Exception)
+        {
+            if (request == _request)
+                _error = true;
+        }
+        finally
+        {
+            if (request == _request)
+                _loading = false;
+        }
     }
 
-    // ── Pure SVG bar chart renderer ──────────────────────────────
-    private RenderFragment RenderBarChart(bool isElectricity) => __builder =>
-    {
-        if (_data is null || _data.Bars.Count == 0) return;
-
-        const int svgW = 900, svgH = 220;
-        const int padL = 48, padR = 10, padT = 10, padB = 36;
-        int chartW = svgW - padL - padR;
-        int chartH = svgH - padT - padB;
-
-        var values = _metric == "Usage"
-            ? _data.Bars.Select(b => isElectricity ? b.ElectricityUsage : b.GasUsage).ToList()
-            : _data.Bars.Select(b => isElectricity ? b.ElectricityCost  : b.GasCost).ToList();
-
-        decimal maxVal = values.Max();
-        if (maxVal <= 0) maxVal = 1;
-
-        int n       = _data.Bars.Count;
-        double barW = Math.Max(4, (double)chartW / n * 0.6);
-        double step  = (double)chartW / n;
-        string color = isElectricity ? "var(--fm-blue)" : "#2E7D32";
-        string colorLight = isElectricity ? "#E3EEFF" : "#E8F5E9";
-
-        __builder.OpenElement(0, "div");
-        __builder.AddAttribute(1, "class", "chart-svg-wrap");
-
-        __builder.OpenElement(2, "svg");
-        __builder.AddAttribute(3, "viewBox", $"0 0 {svgW} {svgH}");
-        __builder.AddAttribute(4, "class", "chart-svg");
-        __builder.AddAttribute(5, "preserveAspectRatio", "xMidYMid meet");
-
-        // Gridlines (4 horizontal)
-        for (int g = 0; g <= 4; g++)
-        {
-            double gy = padT + chartH - (chartH * g / 4.0);
-            decimal gVal = maxVal * g / 4;
-
-            __builder.OpenElement(6 + g * 3, "line");
-            __builder.AddAttribute(7 + g * 3, "x1", padL);
-            __builder.AddAttribute(8 + g * 3, "y1", gy.ToString("F1"));
-            __builder.AddAttribute(9 + g * 3, "x2", svgW - padR);
-            __builder.AddAttribute(10 + g * 3, "y2", gy.ToString("F1"));
-            __builder.AddAttribute(11 + g * 3, "stroke", colorLight);
-            __builder.AddAttribute(12 + g * 3, "stroke-width", "1");
-            __builder.CloseElement();
-
-            __builder.OpenElement(20 + g * 2, "text");
-            __builder.AddAttribute(21 + g * 2, "x", padL - 4);
-            __builder.AddAttribute(22 + g * 2, "y", (gy + 4).ToString("F1"));
-            __builder.AddAttribute(23 + g * 2, "class", "chart-axis-label");
-            __builder.AddAttribute(24 + g * 2, "text-anchor", "end");
-            __builder.AddContent(25 + g * 2, gVal > 999 ? $"{gVal / 1000:N1}k" : gVal.ToString("N0"));
-            __builder.CloseElement();
-        }
-
-        // Bars
-        for (int i = 0; i < n; i++)
-        {
-            double val    = (double)values[i];
-            double barH   = val <= 0 ? 1 : chartH * val / (double)maxVal;
-            double x      = padL + i * step + (step - barW) / 2;
-            double y      = padT + chartH - barH;
-            string label  = _data.Bars[i].Label;
-
-            int seq = 100 + i * 10;
-
-            __builder.OpenElement(seq, "rect");
-            __builder.AddAttribute(seq+1, "x",      x.ToString("F1"));
-            __builder.AddAttribute(seq+2, "y",      y.ToString("F1"));
-            __builder.AddAttribute(seq+3, "width",  barW.ToString("F1"));
-            __builder.AddAttribute(seq+4, "height", barH.ToString("F1"));
-            __builder.AddAttribute(seq+5, "rx",     "3");
-            __builder.AddAttribute(seq+6, "fill",   color);
-            __builder.AddAttribute(seq+7, "opacity", "0.85");
-            __builder.CloseElement();
-
-            // Value label on bar (only if bar is tall enough)
-            if (barH > 18)
+    private List<UsageGraph.Point> GetPoints(bool electricity) =>
+        _data!.Bars.Where(bar => !ShowIntervals || ReadingFrom(bar, electricity).HasValue)
+            .Select(bar =>
             {
-                __builder.OpenElement(seq+8, "text");
-                __builder.AddAttribute(seq+9,  "x",           (x + barW / 2).ToString("F1"));
-                __builder.AddAttribute(seq+10, "y",           (y + 13).ToString("F1"));
-                __builder.AddAttribute(seq+11, "class",       "chart-bar-label");
-                __builder.AddAttribute(seq+12, "text-anchor", "middle");
-                __builder.AddContent(seq+13, val > 999 ? $"{val/1000:N1}k" : val.ToString("N1"));
-                __builder.CloseElement();
-            }
+                var value = Value(bar, electricity);
+                var standing = Standing(bar, electricity);
+                var budget = IsSpending ? (electricity ? bar.ElectricityBudget : bar.GasBudget) ?? 0 : 0;
+                var period = Period(bar, electricity);
+                var detail = $"{period} · {FormatValue(value + standing, electricity)}";
+                if (IsSpending)
+                {
+                    detail += $" estimated total · {FormatValue(value, electricity)} usage · {FormatValue(standing, electricity)} standing";
+                    if (budget > 0)
+                        detail += $" · {FormatValue(budget, electricity)} budget";
+                }
+                else if (IsUsage)
+                {
+                    var cost = electricity ? bar.ElectricityCost : bar.GasCost;
+                    detail += $" · {_data.CurrencySymbol}{cost:N2} usage charges";
+                }
 
-            // X-axis label
-            __builder.OpenElement(seq+14, "text");
-            __builder.AddAttribute(seq+15, "x",           (x + barW / 2).ToString("F1"));
-            __builder.AddAttribute(seq+16, "y",           (svgH - padB + 16).ToString("F1"));
-            __builder.AddAttribute(seq+17, "class",       "chart-axis-label");
-            __builder.AddAttribute(seq+18, "text-anchor", "middle");
-            __builder.AddContent(seq+19, label);
-            __builder.CloseElement();
+                var label = bar.Label;
+                if (ShowIntervals && bar.ReadingDate is { } end && ReadingFrom(bar, electricity) is { } start)
+                {
+                    if (start == end)
+                        label = end.ToString("d MMM");
+                    else if (start.Month == end.Month && start.Year == end.Year)
+                        label = $"{start.Day}–{end.Day}";
+                    else
+                        label = $"{end:d MMM}";
+                }
+
+                return new UsageGraph.Point(label, value, detail, standing, budget);
+            }).ToList();
+
+    private string TableValue(ChartBarDto bar, bool electricity)
+    {
+        if (ShowIntervals && !ReadingFrom(bar, electricity).HasValue)
+            return "—";
+
+        var usage = electricity ? bar.ElectricityUsage : bar.GasUsage;
+        var cost = electricity ? bar.ElectricityCost : bar.GasCost;
+        var currency = _data!.CurrencySymbol;
+        if (IsSpending)
+        {
+            var standing = Standing(bar, electricity);
+            var budget = electricity ? bar.ElectricityBudget : bar.GasBudget;
+            var breakdown = $"{currency}{cost + standing:N2} total ({currency}{cost:N2} usage + {currency}{standing:N2} standing)";
+            return budget is > 0 ? $"{breakdown} · {currency}{budget:N2} budget" : breakdown;
         }
 
-        __builder.CloseElement(); // </svg>
-        __builder.CloseElement(); // </div>
-    };
+        var value = $"{usage:N2} {UsageUnit(electricity)} · {currency}{cost:N2}";
+        return ShowIntervals ? $"{value} ({Period(bar, electricity)})" : value;
+    }
+
+    private string Period(ChartBarDto bar, bool electricity)
+    {
+        if (ShowIntervals && bar.ReadingDate is { } end && ReadingFrom(bar, electricity) is { } start)
+            return start == end ? end.ToString("d MMM yyyy") : $"{start:d MMM yyyy} to {end:d MMM yyyy}";
+
+        return _view == "Monthly" ? $"{bar.Label} {_year}" : bar.Label;
+    }
+
+    private static DateTime? ReadingFrom(ChartBarDto bar, bool electricity) =>
+        electricity ? bar.ElectricityReadingFrom : bar.GasReadingFrom;
+
+    private decimal Value(ChartBarDto bar, bool electricity) => IsUsage
+        ? (electricity ? bar.ElectricityUsage : bar.GasUsage)
+        : (electricity ? bar.ElectricityCost : bar.GasCost);
+
+    private decimal Standing(ChartBarDto bar, bool electricity) =>
+        IsSpending ? (electricity ? bar.ElectricityStandingCost : bar.GasStandingCost) ?? 0 : 0;
+
+    private static string UsageUnit(bool electricity) => electricity ? "kWh" : "units";
+
+    private string FormatValue(decimal value, bool electricity) =>
+        IsUsage ? $"{value:N2} {UsageUnit(electricity)}" : $"{_data!.CurrencySymbol}{value:N2}";
 }

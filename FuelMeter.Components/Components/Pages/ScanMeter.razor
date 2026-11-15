@@ -1,226 +1,324 @@
 @page "/scan-meter"
-@using FuelMeter.Core.DTOs
-@using FuelMeter.Core.Services
-@using FuelMeter.Core.Services.Interfaces
+@implements IAsyncDisposable
 @layout MainLayout
 @inject IMeterReadingService MeterService
+@inject IApiClientService Api
+@inject IServiceProvider Services
 @inject AuthStateService AuthState
 @inject NavigationManager Nav
 @inject IJSRuntime JS
 
 <div class="scan-page">
     <div class="scan-header">
-        <h1 class="scan-title">
-            <i data-lucide="camera" class="scan-icon-lg"></i>
-            Scan Meter
-        </h1>
-        <p class="scan-subtitle">
-            Snap a photo of your meter and we'll try to read the number for you.
-            You can adjust the value before saving.
-        </p>
+        <h1 class="scan-title">Scan meter</h1>
+        <p class="scan-subtitle">Frame the meter display and its unit (kWh, m³ or ft³). Check the suggested reading before saving.</p>
     </div>
 
     <div class="scan-card">
+        <div class="scan-capture">
+            <button type="button" class="scan-btn scan-btn-primary" @onclick="OpenCameraAsync"
+                    disabled="@(IsBusy || _cameraOpen)">
+                @(_nativeCamera is null ? "Open camera" : "Take photo")
+            </button>
+            <label class="scan-btn">
+                <span>Choose image</span>
+                <InputFile @key="_fileInputVersion" class="scan-file-hidden" OnChange="ChooseImageAsync"
+                           accept="image/*" disabled="@(IsBusy || _cameraOpen)" />
+            </label>
+        </div>
+
+        <div class="scan-preview" hidden="@(!_cameraOpen)">
+            <video @ref="_video" autoplay muted playsinline aria-label="Meter camera preview"></video>
+            <div class="scan-actions">
+                <button type="button" class="scan-btn scan-btn-primary" @onclick="CaptureFrameAsync" disabled="@IsBusy">Take photo</button>
+                <button type="button" class="scan-btn" @onclick="CloseCameraAsync">Close camera</button>
+            </div>
+        </div>
+
+        @if (_preview is not null)
+        {
+            <div class="scan-preview"><img src="@_preview" alt="Meter photo" /></div>
+        }
+
+        <p class="scan-hint">FuelMeter sends your meter photo to OpenAI to suggest a reading. You can also enter a reading manually below.</p>
+
+        @if (_processing)
+        {
+            <p class="scan-status" role="status">Reading meter photo…</p>
+        }
+
+        @if (_scanMessage is not null)
+        {
+            <p class="scan-status scan-warn" role="status">@_scanMessage</p>
+        }
+
         <div class="scan-fields">
             <div class="scan-field">
                 <label for="scan-fuel">Fuel type</label>
-                <select id="scan-fuel" class="scan-select" @bind="_fuelType">
-                    <option value="Electricity">⚡ Electricity</option>
-                    <option value="Gas">🔥 Gas</option>
+                <select id="scan-fuel" class="scan-select" @bind="_fuelType" disabled="@IsBusy">
+                    <option value="">Select fuel type</option>
+                    <option value="Electricity">Electricity</option>
+                    <option value="Gas">Gas</option>
                 </select>
             </div>
             <div class="scan-field">
                 <label for="scan-date">Date</label>
-                <input id="scan-date" class="scan-input" type="date" @bind="_readingDate" />
+                <input id="scan-date" class="scan-input" type="date" @bind="_readingDate" disabled="@IsBusy" />
             </div>
         </div>
-
-        <div class="scan-capture">
-            <label class="scan-btn scan-btn-primary">
-                <i data-lucide="camera" class="scan-icon"></i>
-                <span>Take Photo</span>
-                <InputFile OnChange="OnFileChosen" accept="image/*" capture="environment"
-                           style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:0;color:transparent;" />
-            </label>
-            <label class="scan-btn">
-                <i data-lucide="image" class="scan-icon"></i>
-                <span>Choose Image</span>
-                <InputFile OnChange="OnFileChosen" accept="image/*"
-                           style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:0;color:transparent;" />
-            </label>
-        </div>
-
-        @if (!string.IsNullOrEmpty(_imageDataUrl))
-        {
-            <div class="scan-preview">
-                <img src="@_imageDataUrl" alt="Meter photo" />
-            </div>
-        }
-
-        @if (_processing)
-        {
-            <div class="scan-status">
-                <i data-lucide="loader" class="scan-icon"></i>
-                <span>Reading meter… this may take a few seconds.</span>
-            </div>
-        }
-
-        @if (!string.IsNullOrEmpty(_ocrError))
-        {
-            <div class="scan-status scan-warn">
-                <i data-lucide="alert-triangle" class="scan-icon"></i>
-                <span>@_ocrError</span>
-            </div>
-        }
-
         <div class="scan-field">
-            <label for="scan-reading">Detected reading</label>
-            <input id="scan-reading" class="scan-input" type="number" step="1" @bind="_readingValue" />
+            <label for="scan-reading">Meter reading</label>
+            <input id="scan-reading" class="scan-input" type="number" min="0" max="9999999" step="0.01"
+                   @bind="_readingValue" disabled="@IsBusy" />
         </div>
 
-        @if (!string.IsNullOrEmpty(_saveMsg))
+        @if (_saveMessage is not null)
         {
-            <div class="scan-status @(_saveError ? "scan-error" : "scan-success")">
-                <i data-lucide="@(_saveError ? "alert-triangle" : "check-circle")" class="scan-icon"></i>
-                <span>@_saveMsg</span>
-            </div>
+            <p class="scan-status scan-error" role="alert">@_saveMessage</p>
         }
 
         <div class="scan-actions">
-            <button class="scan-btn scan-btn-primary"
-                    @onclick="SaveAsync"
-                    disabled="@(_saving || _readingValue <= 0)">
-                <i data-lucide="save" class="scan-icon"></i>
-                <span>@(_saving ? "Saving…" : "Save Reading")</span>
+            <button type="button" class="scan-btn scan-btn-primary" @onclick="SaveAsync" disabled="@(!CanSave)">
+                @(_saving ? "Saving…" : "Save reading")
             </button>
-            <button class="scan-btn" @onclick="Reset">
-                <i data-lucide="rotate-ccw" class="scan-icon"></i>
-                <span>Clear</span>
-            </button>
+            <button type="button" class="scan-btn" @onclick="Clear" disabled="@(IsBusy || _cameraOpen)">Clear</button>
         </div>
-
-        <p class="scan-hint">
-            <i data-lucide="lightbulb" class="scan-icon"></i>
-            Tip: hold the camera straight, ensure the digits are well-lit,
-            and crop out anything that isn't part of the meter number for best results.
-        </p>
     </div>
 </div>
 
 @code {
-    private string _fuelType = "Electricity";
-    private DateTime _readingDate = DateTime.Today;
-    private decimal _readingValue;
-    private string? _imageDataUrl;
+    private IMeterCamera? _nativeCamera;
+    private ElementReference _video;
+    private string _fuelType = "";
+    private DateTime? _readingDate = DateTime.Today;
+    private decimal? _readingValue;
+    private string? _preview;
+    private string? _scanMessage;
+    private string? _saveMessage;
+    private int _fileInputVersion;
+    private bool _cameraOpen;
+    private bool _opening;
     private bool _processing;
     private bool _saving;
-    private bool _saveError;
-    private string _saveMsg = "";
-    private string? _ocrError;
+    private bool _disposed;
+
+    private bool IsBusy => _opening || _processing || _saving;
+    private bool CanSave => !IsBusy && !_cameraOpen && _readingDate.HasValue &&
+        (_fuelType is "Electricity" or "Gas") &&
+        _readingValue is >= 0 and <= 9999999 && decimal.Round(_readingValue.Value, 2) == _readingValue;
 
     protected override void OnInitialized()
     {
-        if (!AuthState.IsAuthenticated) Nav.NavigateTo("/login");
+        if (!AuthState.IsAuthenticated)
+            Nav.NavigateTo("/login");
+
+        _nativeCamera = Services.GetService(typeof(IMeterCamera)) as IMeterCamera;
     }
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    private async Task OpenCameraAsync()
     {
-        try { await JS.InvokeVoidAsync("lucide.createIcons"); } catch { }
+        if (IsBusy || _cameraOpen)
+            return;
+
+        _scanMessage = null;
+        _opening = true;
+        try
+        {
+            if (_nativeCamera is not null)
+            {
+                if (!_nativeCamera.IsSupported)
+                {
+                    _scanMessage = "Camera capture is unavailable. Choose a photo or enter the reading.";
+                    return;
+                }
+
+                await using var photo = await _nativeCamera.CaptureAsync();
+                if (photo is not null && !_disposed)
+                    await AnalyzeAsync(photo);
+                return;
+            }
+
+            _cameraOpen = true;
+            await JS.InvokeVoidAsync("fuelMeterCamera.start", _video);
+        }
+        catch (Exception)
+        {
+            _cameraOpen = false;
+            _scanMessage = "Could not open the camera. Check camera permissions or choose a photo.";
+        }
+        finally
+        {
+            _opening = false;
+        }
     }
 
-    private async Task OnFileChosen(InputFileChangeEventArgs e)
+    private async Task CloseCameraAsync()
     {
-        _ocrError = null;
-        _saveMsg = "";
+        if (!_cameraOpen)
+            return;
+
+        _cameraOpen = false;
+        try
+        {
+            await JS.InvokeVoidAsync("fuelMeterCamera.stop", _video);
+        }
+        catch (JSDisconnectedException)
+        {
+            // The browser has already disconnected.
+        }
+    }
+
+    private async Task CaptureFrameAsync()
+    {
+        if (IsBusy || !_cameraOpen)
+            return;
+
+        _opening = true;
+        try
+        {
+            await using var frame = await JS.InvokeAsync<IJSStreamReference>("fuelMeterCamera.capture", _video);
+            await CloseCameraAsync();
+            await using var stream = await frame.OpenReadStreamAsync(MeterScanRequest.MaxImageBytes);
+            await AnalyzeAsync(stream);
+        }
+        catch (Exception)
+        {
+            _scanMessage = "Could not capture a photo. Try again or choose an image.";
+        }
+        finally
+        {
+            _opening = false;
+        }
+    }
+
+    private async Task ChooseImageAsync(InputFileChangeEventArgs args)
+    {
+        if (IsBusy || _cameraOpen)
+            return;
+
+        _opening = true;
+        try
+        {
+            if (args.File.Size > 25 * 1024 * 1024)
+                throw new IOException();
+
+            var image = await args.File.RequestImageFileAsync("image/jpeg", 2048, 2048);
+            await using var stream = image.OpenReadStream(MeterScanRequest.MaxImageBytes);
+            await AnalyzeAsync(stream);
+        }
+        catch (Exception)
+        {
+            _scanMessage = "Could not open this image. Try a smaller JPEG or PNG.";
+        }
+        finally
+        {
+            _opening = false;
+            _fileInputVersion++;
+        }
+    }
+
+    private async Task AnalyzeAsync(Stream stream)
+    {
+        Clear();
         _processing = true;
         StateHasChanged();
 
         try
         {
-            var file = e.File;
-            using var ms = new MemoryStream();
-            await using (var stream = file.OpenReadStream(6 * 1024 * 1024))
+            using var buffer = new MemoryStream();
+            var chunk = new byte[32 * 1024];
+            int read;
+            while ((read = await stream.ReadAsync(chunk)) > 0)
             {
-                await stream.CopyToAsync(ms);
-            }
-            var base64 = Convert.ToBase64String(ms.ToArray());
-            _imageDataUrl = $"data:{file.ContentType};base64,{base64}";
+                if (buffer.Length + read > MeterScanRequest.MaxImageBytes)
+                {
+                    _scanMessage = "This photo is too large. Try a smaller image.";
+                    return;
+                }
 
-            try
-            {
-                var detected = await JS.InvokeAsync<string?>("fuelMeterOcr.recognizeMeter", _imageDataUrl);
-                if (!string.IsNullOrWhiteSpace(detected)
-                    && decimal.TryParse(new string(detected.Where(char.IsDigit).ToArray()),
-                                        out var parsed))
-                {
-                    _readingValue = parsed;
-                }
-                else
-                {
-                    _ocrError = "Could not read the meter automatically. Please type the value.";
-                }
+                buffer.Write(chunk, 0, read);
             }
-            catch
+
+            var image = buffer.ToArray();
+            var imageType = MeterScanRequest.GetImageType(image);
+            if (imageType is null)
             {
-                _ocrError = "OCR engine unavailable. Please type the value manually.";
+                _scanMessage = "Choose a JPEG or PNG photo, or enter the reading manually.";
+                return;
             }
+
+            if (_disposed)
+                return;
+
+            _preview = $"data:{imageType};base64,{Convert.ToBase64String(image)}";
+            StateHasChanged();
+            var result = await Api.PostAsync<MeterScanRequest, MeterScanResult>("api/meter-scans", new() { Image = image });
+            _fuelType = result?.FuelType ?? "";
+            _readingValue = result?.ReadingValue is { } reading ? decimal.Round(reading, 2) : null;
+            if (_readingValue is null || _fuelType.Length == 0)
+                _scanMessage = "Check the photo and fill in any values the scan could not identify.";
         }
-        catch (Exception ex)
+        catch (HttpRequestException ex)
         {
-            _ocrError = $"Image error: {ex.Message}";
+            _scanMessage = ex.StatusCode switch
+            {
+                System.Net.HttpStatusCode.Unauthorized => "Sign in again to analyze a meter photo.",
+                System.Net.HttpStatusCode.TooManyRequests => "Too many scans. Try again in a minute or enter the reading.",
+                _ => "Photo analysis is unavailable. You can enter the reading manually."
+            };
+        }
+        catch (Exception)
+        {
+            _scanMessage = "Could not analyze the image. Retake it or enter the reading manually.";
         }
         finally
         {
             _processing = false;
-            StateHasChanged();
         }
     }
 
     private async Task SaveAsync()
     {
+        if (!CanSave || AuthState.CurrentUser is not { } user)
+            return;
+
         _saving = true;
-        _saveMsg = "";
-        _saveError = false;
-        StateHasChanged();
-
-        var dto = new MeterReadingDto
-        {
-            FuelType = _fuelType,
-            ReadingDate = _readingDate,
-            ReadingValue = _readingValue,
-            Notes = "Scanned via camera"
-        };
-
+        _saveMessage = null;
         try
         {
-            var result = await MeterService.SaveAsync(AuthState.CurrentUser!.Id, dto);
-            if (result.Success)
+            var result = await MeterService.SaveAsync(user.Id, new()
             {
-                _saveMsg = result.Message;
-                await Task.Delay(700);
+                FuelType = _fuelType,
+                ReadingDate = _readingDate,
+                ReadingValue = _readingValue
+            });
+            if (result.Success)
                 Nav.NavigateTo("/meter-readings");
-                return;
-            }
-            _saveError = true;
-            _saveMsg = result.Message;
+            else
+                _saveMessage = result.Message;
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            _saveError = true;
-            _saveMsg = ex.Message;
+            _saveMessage = "Could not save the reading. Check Meter Readings before retrying.";
         }
         finally
         {
             _saving = false;
-            StateHasChanged();
         }
     }
 
-    private void Reset()
+    private void Clear()
     {
-        _imageDataUrl = null;
-        _readingValue = 0;
-        _ocrError = null;
-        _saveMsg = "";
+        _preview = null;
+        _fuelType = "";
+        _readingValue = null;
+        _scanMessage = null;
+        _saveMessage = null;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _disposed = true;
+        await CloseCameraAsync();
     }
 }

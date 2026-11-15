@@ -1,0 +1,8 @@
+.graph-grid { stroke: #dce5ef; }
+.graph-label { fill: #475569; font-size: 11px; }
+.graph-budget-line { stroke: #98501d; stroke-width: 2; stroke-dasharray: 4 3; pointer-events: none; }
+.graph-budget-point { fill: #98501d; pointer-events: none; }
+.graph-hit { fill: transparent; cursor: pointer; }
+.graph-hit:hover, .graph-selected { fill: #355b9b14; }
+.graph-hit:focus-visible { outline: 2px solid #173d76; outline-offset: -2px; }
+.graph-detail { margin: .75rem 0 0; min-height: 2.5em; color: #475569; font-size: .875rem; }

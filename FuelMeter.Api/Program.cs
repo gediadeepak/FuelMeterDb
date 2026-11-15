@@ -1,4 +1,5 @@
 using System.Text;
+using System.Threading.RateLimiting;
 using FuelMeter.Api.Extensions;
 using FuelMeter.Api.Options;
 using FuelMeter.Api.Services;
@@ -13,6 +14,14 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddSingleton<FirebasePushService>();
 builder.Services.AddScoped<BudgetPushAlerts>();
+builder.Services.AddHttpClient<MeterImageAnalysis>(client => client.Timeout = TimeSpan.FromSeconds(40));
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("meter-scans", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.User.GetUserId(),
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 8, Window = TimeSpan.FromMinutes(1) }));
+});
 
 // ── Config ─────────────────────────────────────────────────────
 var jwtSection  = builder.Configuration.GetSection(JwtOptions.SectionName);
@@ -134,6 +143,7 @@ app.MapScalarApiReference(options =>
 app.UseCors("BlazorClient");
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 app.MapControllers();
 
 app.Run();

@@ -28,7 +28,7 @@
         <ul>
             <li><strong>Account information.</strong> We ask for your full name, email address and password to create an account. We store a password hash and keep account records such as your user ID and sign-in timestamps. We use your email address for account recovery. These registration details are needed to create and use a FuelMeter account.</li>
             <li><strong>Energy records and settings.</strong> If you use these features, we store the gas and electricity readings, dates, notes, supplier names, tariff details, budgets, and reminder preferences you enter or import. We use them to show your usage, estimate costs, flag unusual readings, and generate charts and statements. You can also download a copy of your data using Import / Export.</li>
-            <li><strong>Meter scanning.</strong> If you choose a photo or use the camera, the app uses the image to suggest a meter reading. The web app processes the selected image in its interactive session and browser. When you save a reading, FuelMeter stores the reading you submit. You can also enter readings manually.</li>
+            <li><strong>Meter scanning.</strong> If you take or choose a meter photo, FuelMeter sends the photo to OpenAI to suggest the fuel type and meter reading. FuelMeter stores the reading you confirm when you save it. You can enter a reading manually without sending a photo.</li>
             <li><strong>Session and device data.</strong> If you choose to stay signed in, FuelMeter stores a session token, its expiry time, and a copy of your profile in protected browser storage or device secure storage. Signing out clears that saved session. If you enable reminders on a supported device, the app uses your notification preferences to schedule them.</li>
         </ul>
 
@@ -37,7 +37,7 @@
 
         <h2>Who receives information</h2>
         <p>If you enable Android budget alerts, FuelMeter stores your Firebase installation ID with your account and uses Google Firebase Cloud Messaging to deliver budget alerts to that installation. The push message contains internal account and budget identifiers. You can turn alerts off in Notification Settings. Deleting your account removes its registered installations from FuelMeter's active database.</p>
-        <p>Our application and database hosting providers process account and usage data so they can host FuelMeter. Our email provider processes your email address, the name used in the message, and the reset message to deliver password recovery emails. Meter scanning and PDF generation can load software from third-party content delivery networks, which receive connection details such as your IP address when your browser or app requests those files. We may disclose information to authorities where required by law.</p>
+        <p>Our application and database hosting providers process account and usage data so they can host FuelMeter. Our email provider processes your email address, the name used in the message, and the reset message to deliver password recovery emails. OpenAI processes meter photos submitted for analysis. PDF generation can load software from a content delivery network, which receives connection details such as your IP address when your browser or app requests those files. We may disclose information to authorities where required by law.</p>
         <p>[Confirm hosting, email and support locations. If any restricted UK transfers apply, identify the destinations, safeguards and how users can obtain a copy.]</p>
 
         <h2>Security, retention and deletion</h2>

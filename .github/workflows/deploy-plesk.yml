@@ -1,0 +1,111 @@
+name: Deploy a FuelMeter build to Plesk
+
+on:
+  workflow_call:
+    inputs:
+      build_run_id:
+        required: true
+        type: string
+      dry_run:
+        required: true
+        type: boolean
+      artifact:
+        required: true
+        type: string
+      application:
+        required: true
+        type: string
+      health_url:
+        required: true
+        type: string
+    secrets:
+      ftp_username:
+        required: true
+      ftp_password:
+        required: true
+
+permissions:
+  actions: read
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: plesk-${{ inputs.application }}
+      cancel-in-progress: false
+    steps:
+      - name: Verify the selected CI run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_RUN_ID: ${{ inputs.build_run_id }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$BUILD_RUN_ID" =~ ^[0-9]+$ ]]; then
+            echo "::error::Enter the numeric run ID from a Build FuelMeter run."
+            exit 1
+          fi
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN_ID" |
+            jq -e --arg repo "$GITHUB_REPOSITORY" '
+              .path == ".github/workflows/dotnet-desktop.yml" and
+              .conclusion == "success" and
+              .head_branch == "main" and
+              .head_repository.full_name == $repo and
+              (.event == "push" or .event == "workflow_dispatch")
+            ' >/dev/null || {
+              echo "::error::Select a successful Build FuelMeter run from this repository's main branch."
+              exit 1
+            }
+
+      - name: Download the tested build
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.artifact }}
+          path: publish
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.build_run_id }}
+
+      - name: Verify the publish package
+        env:
+          APPLICATION: ${{ inputs.application }}
+        run: |
+          set -euo pipefail
+          case "$APPLICATION" in
+            api) assembly=FuelMeter.Api ;;
+            website) assembly=FuelMeter.Web ;;
+            *) exit 1 ;;
+          esac
+          test -s "publish/$assembly.dll"
+          test -s "publish/$assembly.runtimeconfig.json"
+          test -s publish/web.config
+          if compgen -G 'publish/appsettings*.json' > /dev/null; then
+            echo "::error::This package contains server configuration. Select a run of the updated build workflow."
+            exit 1
+          fi
+
+      - name: Sync build to Plesk
+        uses: SamKirkland/FTP-Deploy-Action@v4.4.0
+        with:
+          server: ftp.shrijiitservices.com
+          username: ${{ secrets.ftp_username }}
+          password: ${{ secrets.ftp_password }}
+          protocol: ftps
+          security: strict
+          port: 21
+          local-dir: ./publish/
+          server-dir: /
+          state-name: .fuelmeter-release-sync-state.json
+          dry-run: ${{ inputs.dry_run }}
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+            **/appsettings*.json
+            web.config
+
+      - name: Check the deployed endpoint
+        if: ${{ !inputs.dry_run }}
+        env:
+          HEALTH_URL: ${{ inputs.health_url }}
+        run: curl --fail --silent --show-error --output /dev/null --max-time 15 --retry 5 --retry-all-errors "$HEALTH_URL"

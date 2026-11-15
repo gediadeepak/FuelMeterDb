@@ -91,6 +91,7 @@ namespace FuelMeter
 
             // ── Platform notification scheduler ───────────────────
             builder.Services.AddSingleton<INotificationScheduler, NotificationSchedulerService>();
+            builder.Services.AddSingleton<IMeterCamera, MeterCamera>();
 #if ANDROID
             builder.Services.AddSingleton<IBudgetPushSettings, AndroidBudgetPushSettings>();
 #endif

@@ -2,31 +2,28 @@ name: Deploy Website
 
 on:
   workflow_dispatch:
+    inputs:
+      build_run_id:
+        description: Successful Build FuelMeter run ID from main
+        required: true
+        type: string
+      dry_run:
+        description: Preview Plesk file changes without uploading
+        type: boolean
+        default: true
+
+permissions:
+  actions: read
 
 jobs:
-  deploy-website:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Publish Website
-        run: dotnet publish FuelMeter.Web/FuelMeter.Web.csproj -c Release -o ./publish-website
-
-      - name: Verify Published Files
-        run: ls -la ./publish-website
-
-      - name: Deploy Website to Plesk
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: ftp.shrijiitservices.com
-          username: fuelmeter_website
-          password: @biVkd6z5D&qn*81
-          local-dir: ./publish-website/
-          server-dir: /
+  deploy:
+    uses: ./.github/workflows/deploy-plesk.yml
+    with:
+      build_run_id: ${{ inputs.build_run_id }}
+      dry_run: ${{ inputs.dry_run }}
+      artifact: website-build
+      application: website
+      health_url: https://fuelmeter.shrijiitservices.com/
+    secrets:
+      ftp_username: ${{ secrets.WEBSITE_FTP_USERNAME }}
+      ftp_password: ${{ secrets.WEBSITE_FTP_PASSWORD }}

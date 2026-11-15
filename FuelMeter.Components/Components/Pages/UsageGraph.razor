@@ -1,0 +1,90 @@
+@using System.Globalization
+
+@if (Points.Count == 0)
+{
+    <p class="graph-detail">At least two readings are needed to show usage between readings.</p>
+}
+else
+{
+    var ceiling = Math.Max(1, Points.Max(point => Math.Max(point.Value + point.Standing, point.Budget)));
+    <div class="chart-svg-wrap">
+        <svg class="chart-svg" viewBox="0 0 @Width 228" style="min-width: @(Width)px"
+             role="group" aria-label="@Title">
+            @for (var tick = 0; tick <= 4; tick++)
+            {
+                var value = ceiling * tick / 4;
+                var y = Y(value, ceiling);
+                <g>
+                    <line x1="@Left" y1="@Svg(y)" x2="@(Width - Right)" y2="@Svg(y)" class="graph-grid" />
+                    <text x="@(Left - 6)" y="@Svg(y + 4)" text-anchor="end" class="graph-label">@AxisValue(value)</text>
+                </g>
+            }
+
+            @for (var i = 0; i < Points.Count; i++)
+            {
+                var point = Points[i];
+                var x = X(i);
+                var usageTop = Y(point.Value, ceiling);
+                var totalTop = Y(point.Value + point.Standing, ceiling);
+                var selected = _selected == point;
+                <g>
+                    <rect x="@Svg(x - 14)" y="@Svg(usageTop)" width="28" height="@Svg(Bottom - usageTop)"
+                          rx="2" fill="@Color" />
+                    @if (point.Value == 0 && point.Standing == 0)
+                    {
+                        <line x1="@Svg(x - 14)" x2="@Svg(x + 14)" y1="@Bottom" y2="@Bottom" stroke="@Color" />
+                    }
+                    @if (point.Standing > 0)
+                    {
+                        <rect x="@Svg(x - 14)" y="@Svg(totalTop)" width="28" height="@Svg(usageTop - totalTop)"
+                              fill="@Color" opacity=".35" />
+                    }
+                    @if (point.Budget > 0)
+                    {
+                        var budgetY = Y(point.Budget, ceiling);
+                        @if (i > 0 && Points[i - 1].Budget > 0)
+                        {
+                            <line x1="@Svg(X(i - 1))" y1="@Svg(Y(Points[i - 1].Budget, ceiling))" x2="@Svg(x)"
+                                  y2="@Svg(budgetY)" class="graph-budget-line" />
+                        }
+                        <circle cx="@Svg(x)" cy="@Svg(budgetY)" r="3" class="graph-budget-point" />
+                    }
+                    @if (i == 0 || i == Points.Count - 1 || (i % LabelStep == 0 && i < Points.Count - 1))
+                    {
+                        <g><text x="@Svg(x)" y="214" text-anchor="middle" class="graph-label">@point.Label</text></g>
+                    }
+                    <rect x="@Svg(x - Step / 2 + 1)" y="@Top" width="@Svg(Step - 2)" height="203"
+                          class="graph-hit @(selected ? "graph-selected" : "")" role="button" tabindex="0"
+                          aria-label="@point.Detail" aria-pressed="@(selected ? "true" : "false")"
+                          @onclick="() => _selected = point"
+                          @onkeydown="args => SelectWithKeyboard(args, point)" />
+                </g>
+            }
+        </svg>
+    </div>
+    <p class="graph-detail" aria-live="polite">@(_selected?.Detail ?? "Select a bar for details.")</p>
+}
+
+@code {
+    public sealed record Point(string Label, decimal Value, string Detail, decimal Standing = 0, decimal Budget = 0);
+
+    [Parameter, EditorRequired] public IReadOnlyList<Point> Points { get; set; } = [];
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter, EditorRequired] public string Color { get; set; } = "";
+
+    private const int Left = 54, Right = 12, Top = 9, Bottom = 190;
+    private Point? _selected;
+    private int Width => Math.Max(320, Left + Right + Points.Count * 45);
+    private int LabelStep => Points.Count > 10 ? 2 : 1;
+    private double Step => (double)(Width - Left - Right) / Points.Count;
+    private double X(int index) => Left + (index + .5) * Step;
+    private static double Y(decimal value, decimal ceiling) => Bottom - (Bottom - Top) * (double)(value / ceiling);
+    private static string Svg(double value) => value.ToString("0.##", CultureInfo.InvariantCulture);
+    private static string AxisValue(decimal value) => value >= 1000 ? $"{value / 1000:0.#}k" : value.ToString("0.##");
+
+    private void SelectWithKeyboard(KeyboardEventArgs args, Point point)
+    {
+        if (args.Key is "Enter" or " ")
+            _selected = point;
+    }
+}

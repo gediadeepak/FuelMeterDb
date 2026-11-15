@@ -14,49 +14,58 @@ window.downloadFile = function (fileName, base64Content, mimeType) {
     }
 };
 
-// ---------- Camera OCR using Tesseract.js (CDN, lazy) ----------
-window.fuelMeterOcr = (function () {
-    let tesseractLoading = null;
+// Camera preview for the web host. MAUI uses the platform camera picker.
+window.fuelMeterCamera = (() => {
+    const sessions = new WeakMap();
+    const release = stream => stream?.getTracks().forEach(track => track.stop());
 
-    function loadScript(src) {
-        return new Promise((resolve, reject) => {
-            const existing = document.querySelector(`script[data-fm="${src}"]`);
-            if (existing) { resolve(); return; }
-            const s = document.createElement('script');
-            s.src = src;
-            s.setAttribute('data-fm', src);
-            s.onload = () => resolve();
-            s.onerror = () => reject(new Error('Failed to load ' + src));
-            document.head.appendChild(s);
-        });
+    function stop(video) {
+        if (!video) return;
+        sessions.delete(video);
+        release(video.srcObject);
+        video.srcObject = null;
     }
 
-    async function ensureTesseract() {
-        if (window.Tesseract) return;
-        if (!tesseractLoading) {
-            tesseractLoading = loadScript('https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js');
-        }
-        await tesseractLoading;
-    }
+    async function start(video) {
+        stop(video);
+        const session = {};
+        sessions.set(video, session);
 
-    async function recognizeMeter(imageDataUrl) {
+        let stream;
         try {
-            await ensureTesseract();
-            const { data } = await window.Tesseract.recognize(imageDataUrl, 'eng', {
-                tessedit_char_whitelist: '0123456789'
+            stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 } },
+                audio: false
             });
-            const raw = (data && data.text) ? data.text : '';
-            const matches = raw.match(/\d+/g) || [];
-            if (matches.length === 0) return null;
-            matches.sort((a, b) => b.length - a.length);
-            return matches[0];
-        } catch (err) {
-            console.error('OCR failed', err);
-            return null;
+            if (sessions.get(video) !== session || !video.isConnected) {
+                release(stream);
+                return;
+            }
+            video.srcObject = stream;
+            await video.play();
+        } catch (error) {
+            release(stream);
+            if (sessions.get(video) === session) stop(video);
+            throw error;
         }
     }
 
-    return { recognizeMeter };
+    async function capture(video) {
+        if (!video.videoWidth || !video.videoHeight) throw new Error("Camera is still starting.");
+
+        const canvas = document.createElement("canvas");
+        const scale = Math.min(1, 2048 / Math.max(video.videoWidth, video.videoHeight));
+        canvas.width = Math.round(video.videoWidth * scale);
+        canvas.height = Math.round(video.videoHeight * scale);
+        canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        const image = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", 0.87));
+        if (!image) throw new Error("The camera could not capture a photo.");
+        stop(video);
+        return DotNet.createJSStreamReference(image);
+    }
+
+    return { start, stop, capture };
 })();
 
 // ---------- Monthly Statement: PDF + Print ----------

@@ -238,57 +238,59 @@ public class MeterReadingService(FuelMeterDbContext db) : IMeterReadingService
 
         if (view == "Daily" && month.HasValue)
         {
-            // One bar per day in the selected month
-            int days = DateTime.DaysInMonth(year, month.Value);
             var monthStart = new DateTime(year, month.Value, 1);
-            var monthEnd   = monthStart.AddMonths(1);
-
-            var readings = await db.MeterReadings
-                .Where(r => r.UserId == userId
-                         && r.ReadingDate >= monthStart
-                         && r.ReadingDate < monthEnd)
-                .OrderBy(r => r.FuelType).ThenBy(r => r.ReadingDate)
+            var monthEnd = monthStart.AddMonths(1);
+            var readings = await db.MeterReadings.AsNoTracking()
+                .Where(r => r.UserId == userId && r.ReadingDate >= monthStart && r.ReadingDate < monthEnd)
+                .OrderBy(r => r.ReadingDate).ThenBy(r => r.Id)
                 .ToListAsync();
 
-            for (int d = 1; d <= days; d++)
+            for (var day = monthStart; day < monthEnd; day = day.AddDays(1))
+                bars.Add(new() { Label = day.Day.ToString(), ReadingDate = day });
+
+            foreach (var fuel in new[] { "Electricity", "Gas" })
             {
-                var date  = new DateTime(year, month.Value, d);
-                decimal elecUsage = 0, gasUsage = 0;
+                var fuelReadings = readings.Where(r => r.FuelType == fuel).GroupBy(r => r.ReadingDate.Date).ToList();
+                if (fuelReadings.Count == 0)
+                    continue;
 
-                // For each fuel type: find the reading on or just before this day
-                // and the one just before it — difference = usage attributed to this day
-                foreach (var ft in new[] { "Electricity", "Gas" })
+                var previous = await db.MeterReadings.AsNoTracking()
+                    .Where(r => r.UserId == userId && r.FuelType == fuel && r.ReadingDate < monthStart)
+                    .OrderByDescending(r => r.ReadingDate).ThenByDescending(r => r.Id)
+                    .FirstOrDefaultAsync();
+
+                foreach (var group in fuelReadings)
                 {
-                    var dayReadings = readings
-                        .Where(r => r.FuelType == ft && r.ReadingDate.Date == date)
-                        .OrderBy(r => r.ReadingDate).ThenBy(r => r.Id)
-                        .ToList();
-                    if (dayReadings.Count == 0) continue;
+                    var first = group.First();
+                    var start = previous ?? first;
+                    var hasInterval = previous is not null || group.Skip(1).Any();
+                    var usage = ReadingUsage.Total(group, start.ReadingValue);
+                    var bar = bars[group.Key.Day - 1];
 
-                    var previous = readings
-                        .Where(r => r.FuelType == ft && r.ReadingDate < date)
-                        .OrderByDescending(r => r.ReadingDate).ThenByDescending(r => r.Id)
-                        .FirstOrDefault()?.ReadingValue
-                        ?? await GetPreviousReadingAsync(userId, ft, monthStart, dayReadings[0].ReadingValue);
+                    if (fuel == "Electricity")
+                    {
+                        bar.ElectricityReadingFrom = hasInterval ? start.ReadingDate.Date : null;
+                        bar.ElectricityUsage = Math.Round(usage, 2);
+                        bar.ElectricityCost = Math.Round(usage * elecRate, 2);
+                    }
+                    else
+                    {
+                        bar.GasReadingFrom = hasInterval ? start.ReadingDate.Date : null;
+                        bar.GasUsage = Math.Round(usage, 2);
+                        bar.GasCost = Math.Round(usage * gasRate, 2);
+                    }
 
-                    decimal usage = ReadingUsage.Total(dayReadings, previous);
-                    if (ft == "Electricity") elecUsage = usage;
-                    else                     gasUsage  = usage;
+                    previous = group.Last();
                 }
-
-                bars.Add(new ChartBarDto
-                {
-                    Label            = d.ToString(),
-                    ElectricityUsage = Math.Round(elecUsage, 2),
-                    ElectricityCost  = Math.Round(elecUsage * elecRate, 2),
-                    GasUsage         = Math.Round(gasUsage, 2),
-                    GasCost          = Math.Round(gasUsage * gasRate, 2),
-                });
             }
         }
         else if (view == "Monthly")
         {
-            // One bar per month in the selected year
+            var budgets = await db.Budgets.AsNoTracking()
+                .Where(b => b.UserId == userId && b.Year == year)
+                .Select(b => new { b.Month, b.FuelType, b.BudgetLimit })
+                .ToDictionaryAsync(b => (b.Month, b.FuelType), b => b.BudgetLimit);
+            var today = DateTime.Today;
             for (int m = 1; m <= 12; m++)
             {
                 var monthStart = new DateTime(year, m, 1);
@@ -304,6 +306,12 @@ public class MeterReadingService(FuelMeterDbContext db) : IMeterReadingService
                     ElectricityCost  = Math.Round(elecUsage * elecRate, 2),
                     GasUsage         = Math.Round(gasUsage, 2),
                     GasCost          = Math.Round(gasUsage * gasRate, 2),
+                    ElectricityStandingCost = monthStart <= today
+                        ? Math.Round((settings?.ElectricityStandingCharge ?? 0) * DateTime.DaysInMonth(year, m) / 100m, 2) : 0,
+                    GasStandingCost = monthStart <= today
+                        ? Math.Round((settings?.GasStandingCharge ?? 0) * DateTime.DaysInMonth(year, m) / 100m, 2) : 0,
+                    ElectricityBudget = budgets.GetValueOrDefault((m, "Electricity"), settings?.ElectricityMonthlyBudget ?? 0),
+                    GasBudget = budgets.GetValueOrDefault((m, "Gas"), settings?.GasMonthlyBudget ?? 0)
                 });
             }
         }
@@ -329,7 +337,7 @@ public class MeterReadingService(FuelMeterDbContext db) : IMeterReadingService
             }
         }
 
-        return new UsageChartDto { Bars = bars, CurrencySymbol = symbol };
+        return new UsageChartDto { Bars = bars, CurrencySymbol = symbol, HasReadingIntervals = view == "Daily" && month.HasValue };
     }
 
     private async Task<decimal> CalcPeriodUsageAsync(

@@ -45,8 +45,8 @@
 .scan-btn:disabled { opacity: .6; cursor: not-allowed; }
 .scan-btn-primary { background: #2D6CDF; color: #fff; border-color: #2D6CDF; }
 
-/* Cover the entire label, fully invisible — defeats CSS isolation */
-.scan-btn .scan-file-hidden {
+/* Let the file input cover its label while keeping the visible button text. */
+.scan-btn ::deep .scan-file-hidden {
     position: absolute;
     inset: 0;
     width: 100%;
@@ -56,11 +56,12 @@
     font-size: 0;
     color: transparent;
 }
-.scan-btn .scan-file-hidden::-webkit-file-upload-button { display: none; }
-.scan-btn .scan-file-hidden::file-selector-button { display: none; }
+.scan-btn:focus-within { outline: 2px solid #2D6CDF; outline-offset: 2px; }
+.scan-btn ::deep .scan-file-hidden:disabled { cursor: not-allowed; }
 
 .scan-preview { text-align: center; }
-.scan-preview img { max-width: 100%; max-height: 320px; border-radius: 8px; border: 1px solid #ddd; }
+.scan-preview img, .scan-preview video { max-width: 100%; max-height: 320px; border-radius: 8px; border: 1px solid #ddd; }
+.scan-preview .scan-actions { margin-top: 10px; }
 
 .scan-status {
     display: flex; align-items: center; gap: 8px;
