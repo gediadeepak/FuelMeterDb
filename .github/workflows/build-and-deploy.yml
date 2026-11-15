@@ -40,23 +40,17 @@ jobs:
   build-api:
     name: Build API
     if: inputs.build_api && github.ref == 'refs/heads/main'
-    uses: ./.github/workflows/dotnet-desktop.yml
-    with:
-      build_target: api
+    uses: ./.github/workflows/build-api-package.yml
 
   build-website:
     name: Build website
     if: inputs.build_website && github.ref == 'refs/heads/main'
-    uses: ./.github/workflows/dotnet-desktop.yml
-    with:
-      build_target: website
+    uses: ./.github/workflows/build-website-package.yml
 
   build-apk:
     name: Build Android APK
     if: inputs.build_apk && github.ref == 'refs/heads/main'
-    uses: ./.github/workflows/dotnet-desktop.yml
-    with:
-      build_target: android
+    uses: ./.github/workflows/build-android-package.yml
 
   deploy-api:
     name: Deploy API

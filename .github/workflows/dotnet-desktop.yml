@@ -9,133 +9,21 @@ on:
 
   workflow_dispatch:
 
-  workflow_call:
-    inputs:
-      build_target:
-        type: string
-
 jobs:
 
   build-api:
-    if: ${{ !inputs.build_target || inputs.build_target == 'api' }}
     name: Build API
-    runs-on: windows-latest
-
-    steps:
-      - name: Checkout source
-        uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Restore API
-        run: dotnet restore FuelMeter.Api/FuelMeter.Api.csproj
-
-      - name: Publish API
-        run: dotnet publish FuelMeter.Api/FuelMeter.Api.csproj -c Release --no-restore -o publish/api
-
-      - name: Validate and package database migrations
-        shell: pwsh
-        run: |
-          $toolPath = Join-Path $env:RUNNER_TEMP 'ef-tools'
-          dotnet tool install dotnet-ef --version 10.0.7 --tool-path $toolPath
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $ef = Join-Path $toolPath 'dotnet-ef.exe'
-          $migrationArgs = @(
-            '--configuration', 'Release', '--no-build',
-            '--project', 'FuelMeter.Data/FuelMeter.Data.csproj',
-            '--startup-project', 'FuelMeter.Api/FuelMeter.Api.csproj'
-          )
-          & $ef migrations has-pending-model-changes @migrationArgs
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-          & $ef migrations bundle @migrationArgs --self-contained --target-runtime linux-x64 `
-            --output publish/migrations/fuelmeter-sql-migrations
-          exit $LASTEXITCODE
-
-      - name: Smoke test API and prepare artifact
-        shell: pwsh
-        run: ./.github/scripts/Test-Publish.ps1 -Application API -Directory publish/api
-
-      - name: Upload API Build
-        uses: actions/upload-artifact@v4
-        with:
-          name: api-build
-          path: publish/api
-          if-no-files-found: error
-
-      - name: Upload API migration bundle
-        uses: actions/upload-artifact@v4
-        with:
-          name: api-migrations
-          path: publish/migrations/fuelmeter-sql-migrations
-          if-no-files-found: error
+    uses: ./.github/workflows/build-api-package.yml
 
   build-website:
-    if: ${{ !inputs.build_target || inputs.build_target == 'website' }}
     name: Build Website
-    runs-on: windows-latest
-
-    steps:
-      - name: Checkout source
-        uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Restore Website
-        run: dotnet restore FuelMeter.Web/FuelMeter.Web.csproj
-
-      - name: Publish Website
-        run: dotnet publish FuelMeter.Web/FuelMeter.Web.csproj -c Release --no-restore -o publish/website
-
-      - name: Smoke test website and prepare artifact
-        shell: pwsh
-        run: ./.github/scripts/Test-Publish.ps1 -Application Website -Directory publish/website
-
-      - name: Upload Website Build
-        uses: actions/upload-artifact@v4
-        with:
-          name: website-build
-          path: publish/website
-          if-no-files-found: error
+    uses: ./.github/workflows/build-website-package.yml
 
   build-android:
-    if: ${{ !inputs.build_target || inputs.build_target == 'android' }}
     name: Build Android APK
-    runs-on: windows-latest
-
-    steps:
-      - name: Checkout source
-        uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Install MAUI Workloads
-        run: dotnet workload install maui
-
-      - name: Restore Workloads
-        run: dotnet workload restore FuelMeter.csproj
-
-      - name: Publish Android APK
-        run: dotnet publish FuelMeter.csproj -f net10.0-android -c Release -p:AndroidPackageFormat=apk
-
-      - name: Upload Android APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: android-apk
-          path: |
-            **/bin/Release/net10.0-android/**/*.apk
+    uses: ./.github/workflows/build-android-package.yml
 
   build-windows:
-    if: ${{ !inputs.build_target }}
     name: Build Windows
     runs-on: windows-latest
 
@@ -167,7 +55,6 @@ jobs:
             **/bin/Release/net10.0-windows10.0.19041.0/**/*.json
 
   publish-windows-self-contained:
-    if: ${{ !inputs.build_target }}
     name: Publish Windows Self Contained EXE
     runs-on: windows-latest
 
@@ -205,7 +92,6 @@ jobs:
             **/bin/Release/net10.0-windows10.0.19041.0/**/*.json
 
   publish-windows-msix:
-    if: ${{ !inputs.build_target }}
     name: Publish Windows MSIX
     runs-on: windows-latest
 
