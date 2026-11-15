@@ -10,48 +10,85 @@
 
 <div class="scan-page">
     <div class="scan-header">
-        <h1 class="scan-title">Scan meter</h1>
-        <p class="scan-subtitle">Frame the meter display and its unit (kWh, m³ or ft³). Check the suggested reading before saving.</p>
+        <h1 class="scan-title">Add meter reading</h1>
     </div>
 
     <div class="scan-card">
-        <div class="scan-capture">
-            <button type="button" class="scan-btn scan-btn-primary" @onclick="OpenCameraAsync"
-                    disabled="@(IsBusy || _cameraOpen)">
-                @(_nativeCamera is null ? "Open camera" : "Take photo")
+        <div class="scan-tabs" role="tablist" aria-label="Meter reading method">
+            <button type="button" id="scan-automatic-tab" class="scan-tab" role="tab"
+                    aria-selected="@(_automatic ? "true" : "false")" aria-controls="scan-automatic-panel"
+                    tabindex="@(_automatic ? 0 : -1)" disabled="@IsBusy"
+                    @ref="_automaticTab" @onclick="() => SelectTabAsync(true)" @onkeydown="HandleTabKeyAsync">
+                Automatic
             </button>
-            <label class="scan-btn">
-                <span>Choose image</span>
-                <InputFile @key="_fileInputVersion" class="scan-file-hidden" OnChange="ChooseImageAsync"
-                           accept="image/*" disabled="@(IsBusy || _cameraOpen)" />
-            </label>
+            <button type="button" id="scan-manual-tab" class="scan-tab" role="tab"
+                    aria-selected="@(_automatic ? "false" : "true")" aria-controls="scan-manual-panel"
+                    tabindex="@(_automatic ? -1 : 0)" disabled="@IsBusy"
+                    @ref="_manualTab" @onclick="() => SelectTabAsync(false)" @onkeydown="HandleTabKeyAsync">
+                Manual
+            </button>
         </div>
 
-        <div class="scan-preview" hidden="@(!_cameraOpen)">
-            <video @ref="_video" autoplay muted playsinline aria-label="Meter camera preview"></video>
-            <div class="scan-actions">
-                <button type="button" class="scan-btn scan-btn-primary" @onclick="CaptureFrameAsync" disabled="@IsBusy">Take photo</button>
-                <button type="button" class="scan-btn" @onclick="CloseCameraAsync">Close camera</button>
+        <section id="scan-automatic-panel" class="scan-panel" role="tabpanel"
+                 aria-labelledby="scan-automatic-tab" hidden="@(!_automatic)">
+            <p class="scan-hint">Include the display and its unit (kWh, m³ or ft³). FuelMeter sends the photo to OpenAI to read the meter.</p>
+            <div class="scan-capture">
+                <button type="button" class="scan-btn scan-btn-primary" @onclick="OpenCameraAsync"
+                        disabled="@(IsBusy || _cameraOpen)">
+                    @(_nativeCamera is null ? "Open camera" : "Take photo")
+                </button>
+                <label class="scan-btn">
+                    <span>Choose image</span>
+                    <InputFile @key="_fileInputVersion" class="scan-file-hidden" OnChange="ChooseImageAsync"
+                               accept="image/*" disabled="@(IsBusy || _cameraOpen)" />
+                </label>
             </div>
-        </div>
 
-        @if (_preview is not null)
-        {
-            <div class="scan-preview"><img src="@_preview" alt="Meter photo" /></div>
-        }
+            <div class="scan-preview" hidden="@(!_cameraOpen)">
+                <video @ref="_video" autoplay muted playsinline aria-label="Meter camera preview"></video>
+                <div class="scan-actions">
+                    <button type="button" class="scan-btn scan-btn-primary" @onclick="CaptureFrameAsync" disabled="@IsBusy">Take photo</button>
+                    <button type="button" class="scan-btn" @onclick="CloseCameraAsync">Close camera</button>
+                </div>
+            </div>
 
-        <p class="scan-hint">FuelMeter sends your meter photo to OpenAI to suggest a reading. You can also enter a reading manually below.</p>
+            @if (_preview is not null)
+            {
+                <div class="scan-preview"><img src="@_preview" alt="Meter photo" /></div>
+            }
 
-        @if (_processing)
-        {
-            <p class="scan-status" role="status">Reading meter photo…</p>
-        }
+            @if (_processing)
+            {
+                <p class="scan-status" role="status">Reading meter photo…</p>
+            }
 
-        @if (_scanMessage is not null)
-        {
-            <p class="scan-status scan-warn" role="status">@_scanMessage</p>
-        }
+            @if (_scanMessage is not null)
+            {
+                <p class="scan-status scan-warn" role="status">@_scanMessage</p>
+                <div class="scan-actions">
+                    <button type="button" class="scan-btn" @onclick="() => SelectTabAsync(false)" disabled="@IsBusy">Enter manually</button>
+                </div>
+            }
 
+            @if (_automatic && _hasCompleteScan)
+            {
+                <p class="scan-status scan-success" role="status">Reading detected. Check the value before saving.</p>
+                @ReadingForm
+            }
+        </section>
+
+        <section id="scan-manual-panel" class="scan-panel" role="tabpanel"
+                 aria-labelledby="scan-manual-tab" hidden="@_automatic">
+            @if (!_automatic)
+            {
+                @ReadingForm
+            }
+        </section>
+    </div>
+</div>
+
+@code {
+    private RenderFragment ReadingForm => @<div class="scan-panel">
         <div class="scan-fields">
             <div class="scan-field">
                 <label for="scan-fuel">Fuel type</label>
@@ -83,11 +120,11 @@
             </button>
             <button type="button" class="scan-btn" @onclick="Clear" disabled="@(IsBusy || _cameraOpen)">Clear</button>
         </div>
-    </div>
-</div>
+    </div>;
 
-@code {
     private IMeterCamera? _nativeCamera;
+    private ElementReference _automaticTab;
+    private ElementReference _manualTab;
     private ElementReference _video;
     private string _fuelType = "";
     private DateTime? _readingDate = DateTime.Today;
@@ -101,9 +138,11 @@
     private bool _processing;
     private bool _saving;
     private bool _disposed;
+    private bool _automatic = true;
+    private bool _hasCompleteScan;
 
     private bool IsBusy => _opening || _processing || _saving;
-    private bool CanSave => !IsBusy && !_cameraOpen && _readingDate.HasValue &&
+    private bool CanSave => !IsBusy && !_cameraOpen && (!_automatic || _hasCompleteScan) && _readingDate.HasValue &&
         (_fuelType is "Electricity" or "Gas") &&
         _readingValue is >= 0 and <= 9999999 && decimal.Round(_readingValue.Value, 2) == _readingValue;
 
@@ -113,6 +152,31 @@
             Nav.NavigateTo("/login");
 
         _nativeCamera = Services.GetService(typeof(IMeterCamera)) as IMeterCamera;
+    }
+
+    private async Task SelectTabAsync(bool automatic)
+    {
+        if (IsBusy || _automatic == automatic)
+            return;
+
+        await CloseCameraAsync();
+        _automatic = automatic;
+    }
+
+    private async Task HandleTabKeyAsync(KeyboardEventArgs args)
+    {
+        var automatic = args.Key switch
+        {
+            "ArrowLeft" or "ArrowRight" => !_automatic,
+            "Home" => true,
+            "End" => false,
+            _ => _automatic
+        };
+        if (automatic == _automatic || IsBusy)
+            return;
+
+        await SelectTabAsync(automatic);
+        await (automatic ? _automaticTab : _manualTab).FocusAsync();
     }
 
     private async Task OpenCameraAsync()
@@ -219,7 +283,10 @@
 
     private async Task AnalyzeAsync(Stream stream)
     {
-        Clear();
+        _preview = null;
+        _scanMessage = null;
+        _saveMessage = null;
+        _hasCompleteScan = false;
         _processing = true;
         StateHasChanged();
 
@@ -253,10 +320,27 @@
             _preview = $"data:{imageType};base64,{Convert.ToBase64String(image)}";
             StateHasChanged();
             var result = await Api.PostAsync<MeterScanRequest, MeterScanResult>("api/meter-scans", new() { Image = image });
-            _fuelType = result?.FuelType ?? "";
-            _readingValue = result?.ReadingValue is { } reading ? decimal.Round(reading, 2) : null;
-            if (_readingValue is null || _fuelType.Length == 0)
-                _scanMessage = "Check the photo and fill in any values the scan could not identify.";
+            if (_disposed)
+                return;
+
+            var fuelType = result?.FuelType is "Electricity" or "Gas" ? result.FuelType : null;
+            var readingValue = result?.ReadingValue is >= 0 and <= 9999999
+                ? decimal.Round(result.ReadingValue.Value, 2)
+                : (decimal?)null;
+            if (fuelType is not null || readingValue is not null)
+            {
+                _fuelType = fuelType ?? "";
+                _readingValue = readingValue;
+            }
+
+            _hasCompleteScan = fuelType is not null && readingValue is not null;
+            _scanMessage = (fuelType, readingValue) switch
+            {
+                (null, null) => "No reading was detected. Try a clearer photo or enter it manually.",
+                (null, _) => "The reading was detected. Choose the fuel type in Manual.",
+                (_, null) => "The fuel type was detected. Enter the reading in Manual or try a clearer photo.",
+                _ => null
+            };
         }
         catch (HttpRequestException ex)
         {
@@ -264,7 +348,10 @@
             {
                 System.Net.HttpStatusCode.Unauthorized => "Sign in again to analyze a meter photo.",
                 System.Net.HttpStatusCode.TooManyRequests => "Too many scans. Try again in a minute or enter the reading.",
-                _ => "Photo analysis is unavailable. You can enter the reading manually."
+                System.Net.HttpStatusCode.ServiceUnavailable => "Automatic scanning hasn't been configured on this server.",
+                System.Net.HttpStatusCode.BadGateway => "Automatic scanning couldn't complete. Try again or enter the reading manually.",
+                System.Net.HttpStatusCode.RequestEntityTooLarge => "This photo is too large. Try a smaller image.",
+                _ => "Automatic scanning is unavailable. Try again or enter the reading manually."
             };
         }
         catch (Exception)
@@ -310,6 +397,7 @@
     private void Clear()
     {
         _preview = null;
+        _hasCompleteScan = false;
         _fuelType = "";
         _readingValue = null;
         _scanMessage = null;

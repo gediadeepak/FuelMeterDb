@@ -1,15 +1,26 @@
 .scan-page { display: flex; flex-direction: column; gap: 16px; padding: 16px; max-width: 700px; margin: 0 auto; width: 100%; box-sizing: border-box; }
 
 .scan-title { font-size: 1.4rem; margin: 0; color: #1976D2; display: flex; align-items: center; gap: 8px; }
-.scan-subtitle { color: #666; margin: 4px 0 0; font-size: .9rem; }
-.scan-icon-lg { width: 24px; height: 24px; }
-.scan-icon { width: 18px; height: 18px; }
-
 .scan-card {
     background: #fff; padding: 16px; border-radius: 12px;
     box-shadow: 0 1px 3px rgba(0,0,0,.06);
     display: flex; flex-direction: column; gap: 14px;
 }
+
+.scan-tabs {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
+    background: #edf2fa; padding: 4px; border-radius: 10px;
+}
+.scan-tab {
+    border: 1px solid transparent; border-radius: 8px; background: transparent;
+    color: #39485a; font: inherit; font-weight: 600; min-height: 44px; cursor: pointer;
+}
+.scan-tab[aria-selected="true"] { background: #fff; color: #164d9a; border-color: #c4d7f2; }
+.scan-tab:focus-visible { outline: 2px solid #2D6CDF; outline-offset: -2px; }
+.scan-tab:disabled { cursor: wait; }
+
+.scan-panel { display: flex; flex-direction: column; gap: 14px; }
+.scan-panel[hidden] { display: none; }
 
 .scan-fields { display: grid; grid-template-columns: 1fr; gap: 12px; }
 @media (min-width: 480px) {

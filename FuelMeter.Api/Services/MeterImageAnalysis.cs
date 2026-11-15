@@ -24,11 +24,20 @@ public sealed class MeterImageAnalysis(HttpClient http, IConfiguration config, I
         """);
 
     public bool IsConfigured => !string.IsNullOrWhiteSpace(ApiKey);
-    private string? ApiKey => config["MeterScan:OpenAiApiKey"] ?? config["OPENAI_API_KEY"];
+    private string? ApiKey => config["MeterScan:OpenAiApiKey"] is { } key && !string.IsNullOrWhiteSpace(key)
+        ? key
+        : config["OPENAI_API_KEY"];
 
     public async Task<MeterScanResult> AnalyzeAsync(byte[] image, string mediaType, CancellationToken cancellationToken)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.openai.com/v1/responses");
+        var host = config["MeterScan:OpenAiHost"] ?? "api.openai.com";
+        if (Uri.CheckHostName(host) != UriHostNameType.Dns ||
+            !(host.Equals("api.openai.com", StringComparison.OrdinalIgnoreCase) ||
+              host.EndsWith(".api.openai.com", StringComparison.OrdinalIgnoreCase)))
+            throw new InvalidOperationException("MeterScan:OpenAiHost must be an OpenAI API hostname.");
+
+        var endpoint = new UriBuilder(Uri.UriSchemeHttps, host) { Path = "/v1/responses" }.Uri;
+        using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", ApiKey);
         request.Content = JsonContent.Create(new
         {
