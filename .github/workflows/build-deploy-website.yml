@@ -40,6 +40,13 @@ jobs:
         shell: pwsh
         run: ./.github/scripts/Test-Publish.ps1 -Application Website -Directory publish/website
 
+      - name: Take website offline
+        id: offline
+        env:
+          FTP_USERNAME: ${{ secrets.WEBSITE_FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.WEBSITE_FTP_PASSWORD }}
+        run: ./.github/scripts/Set-FtpAppOffline.ps1 -Mode Enable
+
       - name: Deploy website to Plesk
         uses: SamKirkland/FTP-Deploy-Action@v4.4.0
         with:
@@ -51,6 +58,18 @@ jobs:
           local-dir: ./publish/website/
           server-dir: /
           state-name: .fuelmeter-release-sync-state.json
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+            app_offline.htm
+
+      - name: Bring website online
+        if: ${{ always() && steps.offline.outcome && steps.offline.outcome != 'skipped' }}
+        env:
+          FTP_USERNAME: ${{ secrets.WEBSITE_FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.WEBSITE_FTP_PASSWORD }}
+        run: ./.github/scripts/Set-FtpAppOffline.ps1 -Mode Disable
 
       - name: Check the deployed website
         run: curl.exe --fail --silent --show-error --output NUL --max-time 15 --retry 5 --retry-all-errors https://fuelmeter.shrijiitservices.com/

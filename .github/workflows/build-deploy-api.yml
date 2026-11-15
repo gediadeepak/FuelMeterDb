@@ -72,6 +72,13 @@ jobs:
           & ./publish/migrations/fuelmeter-sql-migrations.exe --connection $env:DATABASE_CONNECTION
           exit $LASTEXITCODE
 
+      - name: Take API offline
+        id: offline
+        env:
+          FTP_USERNAME: ${{ secrets.API_FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.API_FTP_PASSWORD }}
+        run: ./.github/scripts/Set-FtpAppOffline.ps1 -Mode Enable
+
       - name: Deploy API to Plesk
         uses: SamKirkland/FTP-Deploy-Action@v4.4.0
         with:
@@ -83,6 +90,18 @@ jobs:
           local-dir: ./publish/api/
           server-dir: /
           state-name: .fuelmeter-release-sync-state.json
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+            app_offline.htm
+
+      - name: Bring API online
+        if: ${{ always() && steps.offline.outcome && steps.offline.outcome != 'skipped' }}
+        env:
+          FTP_USERNAME: ${{ secrets.API_FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.API_FTP_PASSWORD }}
+        run: ./.github/scripts/Set-FtpAppOffline.ps1 -Mode Disable
 
       - name: Check the deployed API
         run: curl.exe --fail --silent --show-error --output NUL --max-time 15 --retry 5 --retry-all-errors https://fuelmeter.api.shrijiitservices.com/openapi/v1.json
