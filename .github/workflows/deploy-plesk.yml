@@ -123,8 +123,7 @@ jobs:
           server: ftp.shrijiitservices.com
           username: ${{ secrets.ftp_username }}
           password: ${{ secrets.ftp_password }}
-          protocol: ftps
-          security: strict
+          protocol: ftp
           port: 21
           local-dir: ./publish/
           server-dir: /
@@ -158,8 +157,7 @@ jobs:
           server: ftp.shrijiitservices.com
           username: ${{ secrets.ftp_username }}
           password: ${{ secrets.ftp_password }}
-          protocol: ftps
-          security: strict
+          protocol: ftp
           port: 21
           local-dir: ./publish/
           server-dir: /
