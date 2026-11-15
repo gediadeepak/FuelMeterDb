@@ -1,30 +1,35 @@
 name: Build and Deploy API and Website
+run-name: FuelMeter · ${{ (inputs.deploy_api || inputs.deploy_website) && inputs.release_mode || 'Build only' }}
 
 on:
   workflow_dispatch:
     inputs:
-      dry_run:
-        description: Preview selected deployments
-        type: boolean
-        default: true
+      release_mode:
+        description: Choose whether to preview changes or publish to Plesk
+        type: choice
+        required: true
+        default: Preview only
+        options:
+          - Preview only
+          - Deploy to production
       build_api:
-        description: Build API
+        description: Build and test the API and package migrations
         type: boolean
         default: true
       build_website:
-        description: Build website
+        description: Build and test the website
         type: boolean
         default: true
       build_apk:
-        description: Build Android APK
+        description: Build an Android APK for download
         type: boolean
         default: false
       deploy_api:
-        description: Deploy API
+        description: Include the API in this release
         type: boolean
         default: true
       deploy_website:
-        description: Deploy website
+        description: Include the website in this release
         type: boolean
         default: true
 
@@ -61,7 +66,7 @@ jobs:
     uses: ./.github/workflows/deploy-plesk.yml
     with:
       use_current_build: ${{ inputs.build_api }}
-      dry_run: ${{ inputs.dry_run }}
+      dry_run: ${{ inputs.release_mode != 'Deploy to production' }}
       artifact: api-build
       application: api
       health_url: https://fuelmeter.api.shrijiitservices.com/openapi/v1.json
@@ -81,7 +86,7 @@ jobs:
     with:
       use_current_build: ${{ inputs.build_website }}
       build_run_id: ${{ !inputs.build_website && !inputs.build_api && needs.deploy-api.outputs.build_run_id || '' }}
-      dry_run: ${{ inputs.dry_run }}
+      dry_run: ${{ inputs.release_mode != 'Deploy to production' }}
       artifact: website-build
       application: website
       health_url: https://fuelmeter.shrijiitservices.com/
