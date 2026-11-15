@@ -13,7 +13,9 @@ builder.Services.AddRazorComponents()
 
 // ── API base URL ───────────────────────────────────────────────
 var apiBase = builder.Configuration["ApiSettings:BaseUrl"]
-    ?? throw new InvalidOperationException("ApiSettings:BaseUrl is missing.");
+    ?? (builder.Environment.IsProduction()
+        ? "https://fuelmeter.api.shrijiitservices.com/"
+        : throw new InvalidOperationException("ApiSettings:BaseUrl is missing."));
 
 // ── Named API HttpClient ─
 builder.Services.AddHttpClient("FuelMeterApi", client =>
