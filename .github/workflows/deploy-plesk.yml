@@ -21,6 +21,9 @@ on:
       health_url:
         required: true
         type: string
+    outputs:
+      build_run_id:
+        value: ${{ jobs.deploy.outputs.build_run_id }}
     secrets:
       ftp_username:
         required: true
@@ -37,6 +40,8 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    outputs:
+      build_run_id: ${{ steps.build.outputs.run_id }}
     concurrency:
       group: plesk-${{ inputs.application }}
       cancel-in-progress: false

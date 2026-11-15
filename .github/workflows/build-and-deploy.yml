@@ -4,7 +4,27 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: Build and preview both releases without uploading or applying migrations
+        description: Preview selected deployments
+        type: boolean
+        default: true
+      build_api:
+        description: Build API
+        type: boolean
+        default: true
+      build_website:
+        description: Build website
+        type: boolean
+        default: true
+      build_apk:
+        description: Build Android APK
+        type: boolean
+        default: false
+      deploy_api:
+        description: Deploy API
+        type: boolean
+        default: true
+      deploy_website:
+        description: Deploy website
         type: boolean
         default: true
 
@@ -17,19 +37,36 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build:
-    name: Build API and website
-    if: github.ref == 'refs/heads/main'
+  build-api:
+    name: Build API
+    if: inputs.build_api && github.ref == 'refs/heads/main'
     uses: ./.github/workflows/dotnet-desktop.yml
     with:
-      web_only: true
+      build_target: api
+
+  build-website:
+    name: Build website
+    if: inputs.build_website && github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/dotnet-desktop.yml
+    with:
+      build_target: website
+
+  build-apk:
+    name: Build Android APK
+    if: inputs.build_apk && github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/dotnet-desktop.yml
+    with:
+      build_target: android
 
   deploy-api:
     name: Deploy API
-    needs: build
+    needs: build-api
+    if: >-
+      ${{ !cancelled() && inputs.deploy_api &&
+          (!inputs.build_api || needs.build-api.result == 'success') }}
     uses: ./.github/workflows/deploy-plesk.yml
     with:
-      use_current_build: true
+      use_current_build: ${{ inputs.build_api }}
       dry_run: ${{ inputs.dry_run }}
       artifact: api-build
       application: api
@@ -41,10 +78,15 @@ jobs:
 
   deploy-website:
     name: Deploy Website
-    needs: deploy-api
+    needs: [build-website, deploy-api]
+    if: >-
+      ${{ !cancelled() && inputs.deploy_website &&
+          (!inputs.build_website || needs.build-website.result == 'success') &&
+          (!inputs.deploy_api || needs.deploy-api.result == 'success') }}
     uses: ./.github/workflows/deploy-plesk.yml
     with:
-      use_current_build: true
+      use_current_build: ${{ inputs.build_website }}
+      build_run_id: ${{ !inputs.build_website && !inputs.build_api && needs.deploy-api.outputs.build_run_id || '' }}
       dry_run: ${{ inputs.dry_run }}
       artifact: website-build
       application: website

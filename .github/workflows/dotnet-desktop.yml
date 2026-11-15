@@ -11,13 +11,13 @@ on:
 
   workflow_call:
     inputs:
-      web_only:
-        type: boolean
-        default: false
+      build_target:
+        type: string
 
 jobs:
 
   build-api:
+    if: ${{ !inputs.build_target || inputs.build_target == 'api' }}
     name: Build API
     runs-on: windows-latest
 
@@ -74,6 +74,7 @@ jobs:
           if-no-files-found: error
 
   build-website:
+    if: ${{ !inputs.build_target || inputs.build_target == 'website' }}
     name: Build Website
     runs-on: windows-latest
 
@@ -104,7 +105,7 @@ jobs:
           if-no-files-found: error
 
   build-android:
-    if: ${{ !inputs.web_only }}
+    if: ${{ !inputs.build_target || inputs.build_target == 'android' }}
     name: Build Android APK
     runs-on: windows-latest
 
@@ -134,7 +135,7 @@ jobs:
             **/bin/Release/net10.0-android/**/*.apk
 
   build-windows:
-    if: ${{ !inputs.web_only }}
+    if: ${{ !inputs.build_target }}
     name: Build Windows
     runs-on: windows-latest
 
@@ -166,7 +167,7 @@ jobs:
             **/bin/Release/net10.0-windows10.0.19041.0/**/*.json
 
   publish-windows-self-contained:
-    if: ${{ !inputs.web_only }}
+    if: ${{ !inputs.build_target }}
     name: Publish Windows Self Contained EXE
     runs-on: windows-latest
 
@@ -204,7 +205,7 @@ jobs:
             **/bin/Release/net10.0-windows10.0.19041.0/**/*.json
 
   publish-windows-msix:
-    if: ${{ !inputs.web_only }}
+    if: ${{ !inputs.build_target }}
     name: Publish Windows MSIX
     runs-on: windows-latest
 
