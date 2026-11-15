@@ -45,7 +45,7 @@ jobs:
         env:
           FTP_USERNAME: ${{ secrets.WEBSITE_FTP_USERNAME }}
           FTP_PASSWORD: ${{ secrets.WEBSITE_FTP_PASSWORD }}
-        run: ./.github/scripts/Set-FtpAppOffline.ps1 -Mode Enable
+        run: ./.github/scripts/Set-FtpAppOffline.ps1 -Mode Enable -HealthUrl https://fuelmeter.shrijiitservices.com/
 
       - name: Deploy website to Plesk
         uses: SamKirkland/FTP-Deploy-Action@v4.4.0

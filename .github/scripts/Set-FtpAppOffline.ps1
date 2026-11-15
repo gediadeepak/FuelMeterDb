@@ -4,7 +4,8 @@ param(
     [string]$Mode,
 
     [string]$Server = 'ftp.shrijiitservices.com',
-    [int]$Port = 21
+    [int]$Port = 21,
+    [uri]$HealthUrl
 )
 
 $ErrorActionPreference = 'Stop'
@@ -54,6 +55,8 @@ if ($null -ne $existing -and !$existing.StartsWith($marker, [StringComparison]::
 }
 
 if ($Mode -eq 'Enable') {
+    if ($null -eq $HealthUrl) { throw 'HealthUrl is required when taking a site offline.' }
+
     if ($null -eq $existing) {
         $page = @"
 $marker
@@ -68,8 +71,23 @@ $marker
         try { $stream.Write($bytes, 0, $bytes.Length) } finally { $stream.Dispose() }
         $request.GetResponse().Dispose()
     }
-    Start-Sleep -Seconds 3
-    Write-Host 'Placed app_offline.htm at the deployment target.'
+    $deadline = [DateTime]::UtcNow.AddSeconds(45)
+    do {
+        try {
+            $response = Invoke-WebRequest -Uri $HealthUrl -SkipHttpErrorCheck -TimeoutSec 5 `
+                -Headers @{ 'Cache-Control' = 'no-cache' }
+            if ($response.StatusCode -eq 503 -and ([string]$response.Content).Contains($marker)) {
+                Write-Host 'IIS is serving the maintenance page. Waiting for the app process to exit.'
+                Start-Sleep -Seconds 15
+                return
+            }
+        } catch {
+            # The site can briefly disconnect while IIS takes it offline.
+        }
+        Start-Sleep -Seconds 2
+    } while ([DateTime]::UtcNow -lt $deadline)
+
+    throw 'IIS did not serve the maintenance page for this deployment. The upload was stopped.'
 } elseif ($null -ne $existing) {
     $request = New-OfflineRequest ([System.Net.WebRequestMethods+Ftp]::DeleteFile)
     $request.GetResponse().Dispose()

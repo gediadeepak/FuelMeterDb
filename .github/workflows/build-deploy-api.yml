@@ -77,7 +77,7 @@ jobs:
         env:
           FTP_USERNAME: ${{ secrets.API_FTP_USERNAME }}
           FTP_PASSWORD: ${{ secrets.API_FTP_PASSWORD }}
-        run: ./.github/scripts/Set-FtpAppOffline.ps1 -Mode Enable
+        run: ./.github/scripts/Set-FtpAppOffline.ps1 -Mode Enable -HealthUrl https://fuelmeter.api.shrijiitservices.com/openapi/v1.json
 
       - name: Deploy API to Plesk
         uses: SamKirkland/FTP-Deploy-Action@v4.4.0
