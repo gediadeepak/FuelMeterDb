@@ -22,16 +22,16 @@ public class HttpBudgetService(IApiClientService api) : IBudgetService
            ?? throw new InvalidOperationException("Failed to create budget");
 
     public async Task<BudgetDto?> UpdateBudgetAsync(int budgetId, int userId, UpdateBudgetDto dto)
-        => await api.PutAsync<UpdateBudgetDto, BudgetDto>($"api/budget/{budgetId}", dto);
+        => await api.PostAsync<UpdateBudgetDto, BudgetDto>($"api/budget/{budgetId}/update", dto);
 
     public async Task<bool> DeleteBudgetAsync(int budgetId, int userId)
     {
         try
         {
-            await api.DeleteAsync<object>($"api/budget/{budgetId}");
+            await api.PostAsync<object, object>($"api/budget/{budgetId}/delete", new());
             return true;
         }
-        catch
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
             return false;
         }

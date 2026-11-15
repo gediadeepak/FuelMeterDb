@@ -97,7 +97,7 @@ public sealed class AndroidBudgetPushSettings(
     {
         if (auth.IsAuthenticated && !string.IsNullOrEmpty(installationId))
         {
-            await api.PutAsync<PushRegistrationDto, bool>("api/push-installations", new()
+            await api.PostAsync<PushRegistrationDto, bool>("api/push-installations", new()
             {
                 InstallationId = installationId,
                 Enabled = enabled

@@ -33,22 +33,10 @@ public class ApiClientService(HttpClient http) : IApiClientService
 
     public async Task<TResponse?> PostAsync<TRequest, TResponse>(string url, TRequest body)
     {
-        var response = await http.PostAsJsonAsync(url, body);
+        using var response = await http.PostAsJsonAsync(url, body);
         response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<TResponse>();
-    }
-
-    public async Task<TResponse?> PutAsync<TRequest, TResponse>(string url, TRequest body)
-    {
-        var response = await http.PutAsJsonAsync(url, body);
-        response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<TResponse>();
-    }
-
-    public async Task<TResponse?> DeleteAsync<TResponse>(string url)
-    {
-        var response = await http.DeleteAsync(url);
-        response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<TResponse>();
+        return response.StatusCode == System.Net.HttpStatusCode.NoContent
+            ? default
+            : await response.Content.ReadFromJsonAsync<TResponse>();
     }
 }

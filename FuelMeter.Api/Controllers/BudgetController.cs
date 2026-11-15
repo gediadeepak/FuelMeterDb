@@ -1,8 +1,10 @@
 using FuelMeter.Api.Extensions;
 using FuelMeter.Core.DTOs;
 using FuelMeter.Core.Services.Interfaces;
+using Microsoft.Data.SqlClient;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace FuelMeter.Api.Controllers;
 
@@ -66,6 +68,7 @@ public class BudgetController : ControllerBase
     [HttpPost]
     [ProducesResponseType(typeof(BudgetDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<BudgetDto>> Create([FromBody] CreateBudgetDto dto)
     {
         var userId = User.GetUserId();
@@ -75,14 +78,14 @@ public class BudgetController : ControllerBase
             var budget = await _budgetService.CreateBudgetAsync(userId, dto);
             return CreatedAtAction(nameof(GetById), new { id = budget.Id }, budget);
         }
-        catch (Exception ex)
+        catch (DbUpdateException ex) when (ex.InnerException is SqlException { Number: 2601 or 2627 })
         {
-            return BadRequest(new { error = ex.Message });
+            return Conflict(new { error = "A budget already exists for that fuel and month." });
         }
     }
 
     /// <summary>Update an existing budget.</summary>
-    [HttpPut("{id:int}")]
+    [HttpPost("{id:int}/update")]
     [ProducesResponseType(typeof(BudgetDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -90,19 +93,12 @@ public class BudgetController : ControllerBase
     {
         var userId = User.GetUserId();
 
-        try
-        {
-            var budget = await _budgetService.UpdateBudgetAsync(id, userId, dto);
-            return budget == null ? NotFound() : Ok(budget);
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(new { error = ex.Message });
-        }
+        var budget = await _budgetService.UpdateBudgetAsync(id, userId, dto);
+        return budget == null ? NotFound() : Ok(budget);
     }
 
     /// <summary>Delete a budget.</summary>
-    [HttpDelete("{id:int}")]
+    [HttpPost("{id:int}/delete")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Delete(int id)

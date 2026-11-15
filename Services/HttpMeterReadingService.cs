@@ -33,7 +33,7 @@ public class HttpMeterReadingService(IApiClientService api) : IMeterReadingServi
     {
         try
         {
-            return await api.DeleteAsync<SaveMeterReadingResult>($"api/meterreadings/{readingId}")
+            return await api.PostAsync<object, SaveMeterReadingResult>($"api/meterreadings/{readingId}/delete", new())
                    ?? Fail("No response from server.");
         }
         catch (HttpRequestException ex) { return Fail(ex.Message); }

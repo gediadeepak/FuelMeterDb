@@ -56,7 +56,7 @@ public class MeterReadingsController(IMeterReadingService service, BudgetPushAle
     }
 
     /// <summary>Delete a meter reading by id.</summary>
-    [HttpDelete("{id:int}")]
+    [HttpPost("{id:int}/delete")]
     [ProducesResponseType(typeof(SaveMeterReadingResult), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(SaveMeterReadingResult), StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<SaveMeterReadingResult>> Delete(int id)

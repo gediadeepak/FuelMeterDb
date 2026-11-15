@@ -12,7 +12,7 @@ namespace FuelMeter.Api.Controllers;
 [Route("api/push-installations")]
 public class PushInstallationsController(FuelMeterDbContext db) : ControllerBase
 {
-    [HttpPut]
+    [HttpPost]
     public async Task<ActionResult<bool>> SetRegistration(
         PushRegistrationDto request, CancellationToken cancellationToken)
     {

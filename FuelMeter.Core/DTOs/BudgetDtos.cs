@@ -1,16 +1,18 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace FuelMeter.Core.DTOs;
 
 public record CreateBudgetDto(
-    string FuelType,
-    int Year,
-    int Month,
-    decimal BudgetLimit,
-    string? Notes
+    [Required, RegularExpression("^(Electricity|Gas)$")] string FuelType,
+    [Range(1, 9998)] int Year,
+    [Range(1, 12)] int Month,
+    [Range(typeof(decimal), "0.01", "9999999999999999.99", ParseLimitsInInvariantCulture = true)] decimal BudgetLimit,
+    [MaxLength(500)] string? Notes
 );
 
 public record UpdateBudgetDto(
-    decimal BudgetLimit,
-    string? Notes
+    [Range(typeof(decimal), "0.01", "9999999999999999.99", ParseLimitsInInvariantCulture = true)] decimal BudgetLimit,
+    [MaxLength(500)] string? Notes
 );
 
 public record BudgetDto(

@@ -10,6 +10,4 @@ public interface IApiClientService
 
     Task<TResponse?> GetAsync<TResponse>(string url);
     Task<TResponse?> PostAsync<TRequest, TResponse>(string url, TRequest body);
-    Task<TResponse?> PutAsync<TRequest, TResponse>(string url, TRequest body);
-    Task<TResponse?> DeleteAsync<TResponse>(string url);
 }

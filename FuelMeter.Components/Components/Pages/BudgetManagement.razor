@@ -1,164 +1,186 @@
 @page "/budget-management"
-@using FuelMeter.Core.DTOs
-@using FuelMeter.Core.Services
-@using FuelMeter.Core.Services.Interfaces
 @layout MainLayout
+@using System.Globalization
+@using System.Net
 @inject IBudgetService BudgetService
-@inject IBillEstimationService BillService
 @inject AuthStateService AuthState
 @inject NavigationManager Nav
-@inject IJSRuntime JS
 
-<div class="budget-management">
-    <div class="page-header">
+<div class="budget-page">
+    <header class="budget-toolbar">
         <div>
-            <h1><i data-lucide="piggy-bank" class="bi" aria-hidden="true"></i> Budget Management</h1>
-            <p class="subtitle">Set and track your monthly fuel budgets</p>
+            <h1>Budgets</h1>
+            <p>Set monthly spending limits for electricity and gas.</p>
         </div>
-        <button class="btn-primary" @onclick="ShowCreateDialog"><i data-lucide="plus" class="bi" aria-hidden="true"></i> New Budget</button>
+        <button type="button" class="budget-button primary" @onclick="OpenCreate" disabled="@Busy">Add budget</button>
+    </header>
+
+    <div class="budget-year" aria-label="Budget year">
+        <button type="button" class="budget-button" aria-label="Previous year"
+                disabled="@(Busy || _selectedYear <= 1)" @onclick="() => ChangeYearAsync(-1)">‹</button>
+        <strong aria-live="polite">@_selectedYear</strong>
+        <button type="button" class="budget-button" aria-label="Next year"
+                disabled="@(Busy || _selectedYear >= 9998)" @onclick="() => ChangeYearAsync(1)">›</button>
     </div>
+
+    @if (_pageMessage is not null)
+    {
+        <p class="budget-feedback error" role="alert">@_pageMessage</p>
+    }
 
     @if (_loading)
     {
-        <div class="loading-message">Loading budgets...</div>
+        <p class="budget-empty" role="status">Loading budgets…</p>
+    }
+    else if (_loadFailed)
+    {
+        <button type="button" class="budget-button" @onclick="LoadDataAsync">Try again</button>
+    }
+    else if (_monthlyStatuses.Count == 0)
+    {
+        <div class="budget-empty">
+            <h2>No budgets for @_selectedYear</h2>
+            <p>Add a budget to track your spending against a monthly limit.</p>
+        </div>
     }
     else
     {
-        <!-- Year Selector -->
-        <div class="year-selector">
-            <button class="btn-nav" @onclick="PreviousYear"><i data-lucide="chevron-left" class="bi" aria-hidden="true"></i></button>
-            <span class="year-display">@_selectedYear</span>
-            <button class="btn-nav" @onclick="NextYear"><i data-lucide="chevron-right" class="bi" aria-hidden="true"></i></button>
-        </div>
-
-        <!-- Budget Status Cards -->
         <div class="budget-grid">
-            @foreach (var status in _monthlyStatuses.Where(s => s.HasBudget))
+            @foreach (var status in _monthlyStatuses)
             {
-                <div class="budget-card @GetBudgetCardClass(status)">
-                    <div class="budget-header">
-                        <span class="fuel-icon"><i data-lucide="@(status.FuelType == "Electricity" ? "zap" : "flame")" class="bi" aria-hidden="true"></i></span>
-                        <span class="fuel-type">@status.FuelType</span>
-                        <span class="month-label">@GetMonthName(status.Month)</span>
-                    </div>
-                    <div class="budget-details">
-                        <div class="budget-row">
-                            <span class="label">Budget:</span>
-                            <span class="value">£@status.BudgetLimit?.ToString("N2")</span>
-                        </div>
-                        <div class="budget-row">
-                            <span class="label">Spent:</span>
-                            <span class="value">£@status.ActualSpent.ToString("N2")</span>
-                        </div>
-                        @if (status.RemainingBudget.HasValue)
+                <article class="budget-card @(status.IsOverBudget ? "over-budget" : "")" @key="(status.FuelType, status.Year, status.Month)">
+                    <header class="budget-card-heading">
+                        <h2>@status.FuelType</h2>
+                        <span>@GetMonthName(status.Month)</span>
+                    </header>
+                    <dl class="budget-values">
+                        <div><dt>Limit</dt><dd>@status.BudgetLimit?.ToString("C2", UkCurrency)</dd></div>
+                        <div><dt>Spent</dt><dd>@status.ActualSpent.ToString("C2", UkCurrency)</dd></div>
+                        @if (status.RemainingBudget is { } remaining)
                         {
-                            <div class="budget-row">
-                                <span class="label">Remaining:</span>
-                                <span class="value @(status.IsOverBudget ? "over-budget" : "")">
-                                    £@status.RemainingBudget.Value.ToString("N2")
-                                </span>
+                            <div class="budget-remaining">
+                                <dt>@(status.IsOverBudget ? "Over budget" : "Remaining")</dt>
+                                <dd>@Math.Abs(remaining).ToString("C2", UkCurrency)</dd>
                             </div>
                         }
-                        @if (status.PercentageUsed.HasValue)
-                        {
-                            <div class="progress-bar">
-                                <div class="progress-fill @(status.IsOverBudget ? "over" : "")" 
-                                     style="width: @Math.Min(status.PercentageUsed.Value, 100)%"></div>
-                            </div>
-                            <div class="percentage">@status.PercentageUsed.Value.ToString("N0")% Used</div>
-                        }
-                    </div>
+                    </dl>
+                    @if (status.PercentageUsed is { } percentage)
+                    {
+                        <progress class="budget-progress" max="100" value="@Math.Clamp(percentage, 0, 100).ToString(CultureInfo.InvariantCulture)"
+                                  aria-label="Percentage of budget used"></progress>
+                        <p class="budget-percent">@percentage.ToString("N0")% used</p>
+                    }
                     <div class="budget-actions">
-                        <button class="btn-edit" @onclick="() => EditBudget(status)"><i data-lucide="pencil" class="bi" aria-hidden="true"></i> Edit</button>
-                        <button class="btn-delete" @onclick="() => DeleteBudget(status)"><i data-lucide="trash-2" class="bi" aria-hidden="true"></i> Delete</button>
+                        <button type="button" class="budget-button" @onclick="() => OpenEditAsync(status)" disabled="@Busy">Edit</button>
+                        <button type="button" class="budget-button danger" @onclick="() => OpenDelete(status)" disabled="@Busy">Delete</button>
                     </div>
-                </div>
+                </article>
             }
         </div>
+    }
 
-        @if (!_monthlyStatuses.Any(s => s.HasBudget))
-        {
-            <div class="empty-state">
-                <p><i data-lucide="bar-chart-3" class="bi" aria-hidden="true"></i> No budgets set for @_selectedYear</p>
-                <p>Create your first budget to start tracking your spending</p>
-            </div>
-        }
-
-        <!-- Over Budget Alerts -->
-        @if (_overBudgetAlerts.Any())
-        {
-            <div class="alerts-section">
-                <h2><i data-lucide="alert-triangle" class="bi" aria-hidden="true"></i> Over Budget Alerts</h2>
-                <div class="alerts-list">
-                    @foreach (var alert in _overBudgetAlerts)
-                    {
-                        <div class="alert-card">
-                            <span class="alert-fuel">@alert.FuelType</span>
-                            <span class="alert-month">@GetMonthName(alert.Month) @alert.Year</span>
-                            <span class="alert-amount">Over by £@Math.Abs(alert.RemainingBudget).ToString("N2")</span>
-                        </div>
-                    }
+    @if (_overBudgetAlerts.Count > 0)
+    {
+        <section class="budget-alerts" aria-labelledby="budget-alerts-heading">
+            <h2 id="budget-alerts-heading">Over budget</h2>
+            @foreach (var alert in _overBudgetAlerts)
+            {
+                <div class="budget-alert">
+                    <span>@alert.FuelType · @GetMonthName(alert.Month) @alert.Year</span>
+                    <strong>Over by @Math.Abs(alert.RemainingBudget).ToString("C2", UkCurrency)</strong>
                 </div>
-            </div>
-        }
+            }
+        </section>
     }
 </div>
 
-<!-- Create/Edit Dialog -->
-@if (_showDialog)
+@if (_dialog is not null || _deleteTarget is not null)
 {
-    <div class="modal-overlay" @onclick="CloseDialog">
-        <div class="modal-content" @onclick:stopPropagation="true">
-            <h2>@(_isEditing ? "Edit Budget" : "Create Budget")</h2>
-            <div class="form-group">
-                <label>Fuel Type</label>
-                <select @bind="_dialogBudget.FuelType" disabled="@_isEditing">
-                    <option value="Electricity">Electricity</option>
-                    <option value="Gas">Gas</option>
-                </select>
+    <div class="budget-overlay" @onclick="CloseDialog">
+        <section class="budget-dialog" role="dialog" aria-modal="true" aria-labelledby="budget-dialog-title" @onclick:stopPropagation="true">
+            @if (_dialog is { } budget)
+            {
+                <h2 id="budget-dialog-title">@(budget.Id == 0 ? "Add budget" : "Edit budget")</h2>
+                <div class="budget-form">
+                    <div class="budget-field">
+                        <label for="budget-fuel">Fuel type</label>
+                        <select id="budget-fuel" @bind="budget.FuelType" disabled="@(_working || budget.Id != 0)">
+                            <option value="Electricity">Electricity</option>
+                            <option value="Gas">Gas</option>
+                        </select>
+                    </div>
+                    <div class="budget-period">
+                        <div class="budget-field">
+                            <label for="budget-month">Month</label>
+                            <select id="budget-month" @bind="budget.Month" disabled="@(_working || budget.Id != 0)">
+                                @for (var month = 1; month <= 12; month++)
+                                {
+                                    <option value="@month">@GetMonthName(month)</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="budget-field">
+                            <label for="budget-year">Year</label>
+                            <input id="budget-year" type="number" min="1" max="9998" @bind="budget.Year" disabled="@(_working || budget.Id != 0)" />
+                        </div>
+                    </div>
+                    <div class="budget-field">
+                        <label for="budget-limit">Budget limit (£)</label>
+                        <input id="budget-limit" type="number" min="0.01" step="0.01" inputmode="decimal" @bind="budget.Limit" disabled="@_working" />
+                    </div>
+                    <div class="budget-field">
+                        <label for="budget-notes">Notes (optional)</label>
+                        <textarea id="budget-notes" maxlength="500" rows="3" @bind="budget.Notes" disabled="@_working"></textarea>
+                    </div>
+                </div>
+            }
+            else if (_deleteTarget is { } target)
+            {
+                <h2 id="budget-dialog-title">Delete budget?</h2>
+                <p>Remove the @target.FuelType.ToLowerInvariant() budget for @GetMonthName(target.Month) @target.Year.</p>
+            }
+
+            @if (_dialogMessage is not null)
+            {
+                <p class="budget-feedback error" role="alert">@_dialogMessage</p>
+            }
+
+            <div class="budget-actions">
+                <button type="button" class="budget-button" @onclick="CloseDialog" disabled="@_working">Cancel</button>
+                @if (_dialog is not null)
+                {
+                    <button type="button" class="budget-button primary" @onclick="SaveBudgetAsync" disabled="@_working">
+                        @(_working ? "Saving…" : "Save budget")
+                    </button>
+                }
+                else
+                {
+                    <button type="button" class="budget-button danger" @onclick="DeleteBudgetAsync" disabled="@_working">
+                        @(_working ? "Deleting…" : "Delete budget")
+                    </button>
+                }
             </div>
-            <div class="form-group">
-                <label>Year</label>
-                <input type="number" @bind="_dialogBudget.Year" disabled="@_isEditing" />
-            </div>
-            <div class="form-group">
-                <label>Month</label>
-                <select @bind="_dialogBudget.Month" disabled="@_isEditing">
-                    @for (int i = 1; i <= 12; i++)
-                    {
-                        <option value="@i">@GetMonthName(i)</option>
-                    }
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Budget Limit (£)</label>
-                <input type="number" step="0.01" @bind="_dialogBudget.BudgetLimit" />
-            </div>
-            <div class="form-group">
-                <label>Notes (optional)</label>
-                <textarea @bind="_dialogBudget.Notes" rows="3"></textarea>
-            </div>
-            <div class="modal-actions">
-                <button class="btn-secondary" @onclick="CloseDialog">Cancel</button>
-                <button class="btn-primary" @onclick="SaveBudget">@(_isEditing ? "Update" : "Create")</button>
-            </div>
-        </div>
+        </section>
     </div>
 }
 
 @code {
+    private static readonly CultureInfo UkCurrency = CultureInfo.GetCultureInfo("en-GB");
     private bool _loading = true;
-    private int _selectedYear = DateTime.UtcNow.Year;
-    private List<MonthlyBudgetStatusDto> _monthlyStatuses = new();
-    private List<BudgetSummaryDto> _overBudgetAlerts = new();
+    private bool _loadFailed;
+    private bool _working;
+    private int _selectedYear = DateTime.Today.Year;
+    private List<MonthlyBudgetStatusDto> _monthlyStatuses = [];
+    private List<BudgetSummaryDto> _overBudgetAlerts = [];
+    private BudgetEditor? _dialog;
+    private MonthlyBudgetStatusDto? _deleteTarget;
+    private string? _pageMessage;
+    private string? _dialogMessage;
 
-    private bool _showDialog = false;
-    private bool _isEditing = false;
-    private DialogBudgetModel _dialogBudget = new();
+    private bool Busy => _loading || _working;
 
     protected override async Task OnInitializedAsync()
     {
-        // Check authentication before loading data
         if (!AuthState.IsAuthenticated)
         {
             Nav.NavigateTo("/login");
@@ -168,23 +190,25 @@
         await LoadDataAsync();
     }
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        try { await JS.InvokeVoidAsync("lucide.createIcons"); } catch { }
-    }
-
     private async Task LoadDataAsync()
     {
         _loading = true;
+        _loadFailed = false;
+        _pageMessage = null;
+        _monthlyStatuses = [];
+        _overBudgetAlerts = [];
         try
         {
             var userId = AuthState.CurrentUser?.Id ?? 0;
-            _monthlyStatuses = await BudgetService.GetMonthlyBudgetStatusAsync(userId, _selectedYear);
+            var statuses = await BudgetService.GetMonthlyBudgetStatusAsync(userId, _selectedYear);
+            _monthlyStatuses = statuses.Where(status => status.HasBudget)
+                .OrderBy(status => status.Month).ThenBy(status => status.FuelType).ToList();
             _overBudgetAlerts = await BudgetService.GetOverBudgetAlertsAsync(userId);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error loading budgets: {ex.Message}");
+            _loadFailed = _monthlyStatuses.Count == 0;
+            _pageMessage = GetError(ex, _loadFailed ? "Could not load budgets. Try again." : "Could not load budget alerts.");
         }
         finally
         {
@@ -192,179 +216,158 @@
         }
     }
 
-    private void PreviousYear()
+    private async Task ChangeYearAsync(int offset)
     {
-        _selectedYear--;
-        _ = LoadDataAsync();
+        if (Busy || _selectedYear + offset is < 1 or > 9998)
+            return;
+
+        _selectedYear += offset;
+        await LoadDataAsync();
     }
 
-    private void NextYear()
+    private void OpenCreate()
     {
-        _selectedYear++;
-        _ = LoadDataAsync();
+        _dialogMessage = null;
+        _dialog = new() { Year = _selectedYear, Month = DateTime.Today.Month };
     }
 
-    private void ShowCreateDialog()
+    private async Task OpenEditAsync(MonthlyBudgetStatusDto status)
     {
-        _isEditing = false;
-        _dialogBudget = new DialogBudgetModel
-        {
-            Year = _selectedYear,
-            Month = DateTime.UtcNow.Month,
-            FuelType = "Electricity",
-            BudgetLimit = 0
-        };
-        _showDialog = true;
-    }
+        if (Busy || AuthState.CurrentUser is not { } user)
+            return;
 
-    private async void EditBudget(MonthlyBudgetStatusDto status)
-    {
-        _isEditing = true;
-        var budget = await BudgetService.GetBudgetForMonthAsync(
-            AuthState.CurrentUser?.Id ?? 0,
-            status.FuelType,
-            status.Year,
-            status.Month
-        );
-
-        if (budget != null)
-        {
-            _dialogBudget = new DialogBudgetModel
-            {
-                Id = budget.Id,
-                FuelType = budget.FuelType,
-                Year = budget.Year,
-                Month = budget.Month,
-                BudgetLimit = budget.BudgetLimit,
-                Notes = budget.Notes
-            };
-            _showDialog = true;
-            StateHasChanged();
-        }
-    }
-
-    private async void DeleteBudget(MonthlyBudgetStatusDto status)
-    {
-        var budget = await BudgetService.GetBudgetForMonthAsync(
-            AuthState.CurrentUser?.Id ?? 0,
-            status.FuelType,
-            status.Year,
-            status.Month
-        );
-
-        if (budget != null)
-        {
-            var success = await BudgetService.DeleteBudgetAsync(budget.Id, AuthState.CurrentUser?.Id ?? 0);
-            if (success)
-            {
-                await LoadDataAsync();
-                StateHasChanged();
-            }
-        }
-    }
-
-    private async Task SaveBudget()
-    {
+        _working = true;
+        _pageMessage = null;
+        _dialogMessage = null;
         try
         {
-            var userId = AuthState.CurrentUser?.Id ?? 0;
-
-            if (_isEditing)
+            var budget = await BudgetService.GetBudgetForMonthAsync(user.Id, status.FuelType, status.Year, status.Month);
+            if (budget is null)
             {
-                var updateDto = new UpdateBudgetDto(_dialogBudget.BudgetLimit, _dialogBudget.Notes);
-                await BudgetService.UpdateBudgetAsync(_dialogBudget.Id, userId, updateDto);
-            }
-            else
-            {
-                var createDto = new CreateBudgetDto(
-                    _dialogBudget.FuelType,
-                    _dialogBudget.Year,
-                    _dialogBudget.Month,
-                    _dialogBudget.BudgetLimit,
-                    _dialogBudget.Notes
-                );
-                await BudgetService.CreateBudgetAsync(userId, createDto);
+                _pageMessage = "This budget is unavailable. Reload the page and try again.";
+                return;
             }
 
-            CloseDialog();
+            _dialog = new()
+            {
+                Id = budget.Id, FuelType = budget.FuelType, Year = budget.Year,
+                Month = budget.Month, Limit = budget.BudgetLimit, Notes = budget.Notes
+            };
+        }
+        catch (Exception ex)
+        {
+            _pageMessage = GetError(ex, "Could not open the budget. Try again.");
+        }
+        finally
+        {
+            _working = false;
+        }
+    }
+
+    private void OpenDelete(MonthlyBudgetStatusDto status)
+    {
+        _dialogMessage = null;
+        _deleteTarget = status;
+    }
+
+    private async Task SaveBudgetAsync()
+    {
+        if (_working || _dialog is not { } budget || AuthState.CurrentUser is not { } user)
+            return;
+
+        if (budget.Year is < 1 or > 9998 || budget.Month is < 1 or > 12 ||
+            budget.FuelType is not ("Electricity" or "Gas"))
+        {
+            _dialogMessage = "Choose a valid fuel type, month and year.";
+            return;
+        }
+
+        if (budget.Limit is not { } limit || limit is < 0.01m or > 9999999999999999.99m || decimal.Round(limit, 2) != limit)
+        {
+            _dialogMessage = "Enter a budget limit greater than zero, with up to two decimal places.";
+            return;
+        }
+
+        _working = true;
+        _dialogMessage = null;
+        try
+        {
+            var notes = string.IsNullOrWhiteSpace(budget.Notes) ? null : budget.Notes.Trim();
+            if (budget.Id == 0)
+                await BudgetService.CreateBudgetAsync(user.Id, new(budget.FuelType, budget.Year, budget.Month, limit, notes));
+            else if (await BudgetService.UpdateBudgetAsync(budget.Id, user.Id, new(limit, notes)) is null)
+            {
+                _dialogMessage = "This budget is unavailable. Reload the page and try again.";
+                return;
+            }
+
+            _selectedYear = budget.Year;
+            _dialog = null;
             await LoadDataAsync();
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error saving budget: {ex.Message}");
+            _dialogMessage = GetError(ex, "Could not save the budget. Try again.");
+        }
+        finally
+        {
+            _working = false;
+        }
+    }
+
+    private async Task DeleteBudgetAsync()
+    {
+        if (_working || _deleteTarget is not { } target || AuthState.CurrentUser is not { } user)
+            return;
+
+        _working = true;
+        _dialogMessage = null;
+        try
+        {
+            var budget = await BudgetService.GetBudgetForMonthAsync(user.Id, target.FuelType, target.Year, target.Month);
+            if (budget is not null)
+                await BudgetService.DeleteBudgetAsync(budget.Id, user.Id);
+
+            _deleteTarget = null;
+            await LoadDataAsync();
+        }
+        catch (Exception ex)
+        {
+            _dialogMessage = GetError(ex, "Could not delete the budget. Try again.");
+        }
+        finally
+        {
+            _working = false;
         }
     }
 
     private void CloseDialog()
     {
-        _showDialog = false;
-        _dialogBudget = new();
+        if (_working)
+            return;
+
+        _dialog = null;
+        _deleteTarget = null;
+        _dialogMessage = null;
     }
 
-    private string GetBudgetCardClass(MonthlyBudgetStatusDto status)
+    private static string GetError(Exception ex, string fallback) => (ex as HttpRequestException)?.StatusCode switch
     {
-        if (status.IsOverBudget) return "over-budget";
-        if (status.PercentageUsed > 80) return "warning";
-        return "";
-    }
+        HttpStatusCode.Unauthorized => "Sign in again to manage budgets.",
+        HttpStatusCode.Conflict => "A budget already exists for this fuel type and month.",
+        HttpStatusCode.BadRequest => "Check the budget details and try again.",
+        _ => fallback
+    };
 
-    private string GetMonthName(int month) => new DateTime(2000, month, 1).ToString("MMMM");
+    private static string GetMonthName(int month) => UkCurrency.DateTimeFormat.GetMonthName(month);
 
-    private class DialogBudgetModel
+    private sealed class BudgetEditor
     {
-        public int Id { get; set; }
+        public int Id { get; init; }
         public string FuelType { get; set; } = "Electricity";
         public int Year { get; set; }
         public int Month { get; set; }
-        public decimal BudgetLimit { get; set; }
+        public decimal? Limit { get; set; }
         public string? Notes { get; set; }
     }
 }
-
-<style>
-    .budget-management { padding: 2rem; max-width: 1400px; margin: 0 auto; }
-    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
-    .page-header h1 { margin: 0; font-size: 2rem; }
-    .subtitle { color: #666; margin-top: 0.5rem; }
-    .year-selector { display: flex; align-items: center; justify-content: center; gap: 2rem; margin-bottom: 2rem; }
-    .year-display { font-size: 1.5rem; font-weight: 600; min-width: 100px; text-align: center; }
-    .btn-nav { padding: 0.5rem 1rem; border: 1px solid #ddd; background: white; border-radius: 4px; cursor: pointer; }
-    .btn-nav:hover { background: #f5f5f5; }
-    .budget-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
-    .budget-card { border: 2px solid #e0e0e0; border-radius: 8px; padding: 1.5rem; background: white; }
-    .budget-card.warning { border-color: #ff9800; background: #fff8e1; }
-    .budget-card.over-budget { border-color: #f44336; background: #ffebee; }
-    .budget-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; font-weight: 600; }
-    .fuel-icon { font-size: 1.5rem; }
-    .fuel-type { flex: 1; }
-    .month-label { color: #666; font-size: 0.9rem; }
-    .budget-details { margin-bottom: 1rem; }
-    .budget-row { display: flex; justify-content: space-between; margin-bottom: 0.5rem; }
-    .budget-row .label { color: #666; }
-    .budget-row .value.over-budget { color: #f44336; font-weight: 600; }
-    .progress-bar { height: 8px; background: #e0e0e0; border-radius: 4px; overflow: hidden; margin: 1rem 0 0.5rem; }
-    .progress-fill { height: 100%; background: #4caf50; transition: width 0.3s; }
-    .progress-fill.over { background: #f44336; }
-    .percentage { text-align: center; font-size: 0.9rem; color: #666; }
-    .budget-actions { display: flex; gap: 0.5rem; }
-    .btn-edit, .btn-delete { flex: 1; padding: 0.5rem; border: 1px solid #ddd; background: white; border-radius: 4px; cursor: pointer; }
-    .btn-edit:hover { background: #e3f2fd; }
-    .btn-delete:hover { background: #ffebee; color: #f44336; }
-    .empty-state { text-align: center; padding: 3rem; color: #666; }
-    .alerts-section { margin-top: 2rem; }
-    .alerts-section h2 { margin-bottom: 1rem; color: #f44336; }
-    .alerts-list { display: flex; flex-direction: column; gap: 0.5rem; }
-    .alert-card { display: flex; justify-content: space-between; padding: 1rem; background: #ffebee; border-left: 4px solid #f44336; border-radius: 4px; }
-    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; }
-    .modal-content { background: white; border-radius: 8px; padding: 2rem; min-width: 400px; max-width: 90%; }
-    .modal-content h2 { margin-top: 0; }
-    .form-group { margin-bottom: 1rem; }
-    .form-group label { display: block; margin-bottom: 0.5rem; font-weight: 500; }
-    .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; }
-    .modal-actions { display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem; }
-    .btn-primary { padding: 0.75rem 1.5rem; background: #1976d2; color: white; border: none; border-radius: 4px; cursor: pointer; }
-    .btn-primary:hover { background: #1565c0; }
-    .btn-secondary { padding: 0.75rem 1.5rem; background: #f5f5f5; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; }
-    .btn-secondary:hover { background: #e0e0e0; }
-    .loading-message { text-align: center; padding: 3rem; color: #666; }
-</style>

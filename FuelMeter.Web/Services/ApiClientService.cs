@@ -37,23 +37,11 @@ public class ApiClientService(IHttpClientFactory factory, AuthStateService authS
 
     public async Task<TResponse?> PostAsync<TRequest, TResponse>(string url, TRequest body)
     {
-        var response = await CreateClient().PostAsJsonAsync(url, body);
+        using var response = await CreateClient().PostAsJsonAsync(url, body);
         response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<TResponse>();
-    }
-
-    public async Task<TResponse?> PutAsync<TRequest, TResponse>(string url, TRequest body)
-    {
-        var response = await CreateClient().PutAsJsonAsync(url, body);
-        response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<TResponse>();
-    }
-
-    public async Task<TResponse?> DeleteAsync<TResponse>(string url)
-    {
-        var response = await CreateClient().DeleteAsync(url);
-        response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<TResponse>();
+        return response.StatusCode == System.Net.HttpStatusCode.NoContent
+            ? default
+            : await response.Content.ReadFromJsonAsync<TResponse>();
     }
 
     // Creates a client from the pool and stamps the current circuit token onto it.

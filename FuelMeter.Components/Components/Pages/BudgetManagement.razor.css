@@ -1,0 +1,79 @@
+.budget-page { display: flex; flex-direction: column; gap: 18px; }
+
+.budget-toolbar {
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+}
+
+.budget-toolbar h1 { margin: 0; font-size: 1.5rem; font-weight: 700; color: var(--fm-text); }
+.budget-toolbar p, .budget-empty p { margin: 4px 0 0; color: var(--fm-muted); font-size: .88rem; }
+
+.budget-year {
+    align-self: flex-start; display: flex; align-items: center; gap: 12px;
+    padding: 4px; border-radius: 12px; border: 1px solid var(--fm-border); background: var(--fm-card);
+}
+.budget-year strong { min-width: 4ch; text-align: center; font-variant-numeric: tabular-nums; }
+.budget-year .budget-button { min-width: 44px; padding: 0; font-size: 1.25rem; }
+
+.budget-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 14px;
+}
+
+.budget-card, .budget-empty, .budget-dialog {
+    background: var(--fm-card); border: 1px solid var(--fm-border); border-radius: 16px;
+    padding: 18px; box-shadow: 0 1px 6px rgba(0, 0, 0, .06);
+}
+.budget-card { display: flex; flex-direction: column; gap: 12px; }
+.budget-card.over-budget { border-color: var(--fm-error); }
+.budget-card-heading {
+    display: flex; align-items: baseline; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px;
+}
+.budget-card-heading h2, .budget-empty h2, .budget-alerts h2, .budget-dialog h2 {
+    font-size: 1rem; font-weight: 700; margin: 0; color: var(--fm-text);
+}
+.budget-card-heading span, .budget-percent { color: var(--fm-muted); font-size: .82rem; }
+
+.budget-values { display: grid; gap: 7px; margin: 0; font-size: .9rem; }
+.budget-values > div { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; }
+.budget-values dt { font-weight: 500; color: var(--fm-muted); }
+.budget-values dd { margin: 0; font-weight: 700; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.budget-remaining { border-top: 1px solid var(--fm-border); padding-top: 7px; }
+.over-budget .budget-remaining dd { color: var(--fm-error); }
+.budget-progress { width: 100%; height: 8px; accent-color: var(--fm-blue); }
+.over-budget .budget-progress { accent-color: var(--fm-error); }
+.budget-percent { margin: -5px 0 0; }
+
+.budget-button {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-height: 44px; padding: 8px 14px; border: 1px solid var(--fm-border); border-radius: 12px;
+    background: var(--fm-bg); color: var(--fm-text); font: inherit; font-size: .9rem; font-weight: 600; cursor: pointer;
+}
+.budget-button:disabled { opacity: .6; cursor: default; }
+.budget-button:focus-visible { outline: 2px solid var(--fm-blue); outline-offset: 2px; }
+.budget-button.primary { background: var(--fm-grad-primary); border-color: transparent; color: var(--fm-text-on-dark); }
+.budget-button.danger { color: var(--fm-error); background: var(--fm-error-bg); border-color: transparent; }
+.budget-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
+.budget-actions .budget-button { flex: 1 1 100px; }
+
+.budget-empty { margin: 0; text-align: center; color: var(--fm-muted); }
+.budget-alerts { display: grid; gap: 8px; }
+.budget-alert, .budget-feedback { border-radius: 10px; padding: 10px 12px; font-size: .88rem; }
+.budget-alert, .budget-feedback.error { background: var(--fm-error-bg); color: var(--fm-error); }
+.budget-alert { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; }
+.budget-feedback { margin: 0; }
+
+.budget-overlay {
+    position: fixed; inset: 0; z-index: 1100; display: grid; place-items: center;
+    padding: 16px; background: rgba(10, 47, 110, .46);
+}
+.budget-dialog { width: min(100%, 440px); max-height: 100%; overflow-y: auto; display: grid; gap: 15px; }
+.budget-dialog h2 { font-size: 1.2rem; }
+.budget-dialog p { margin: 0; }
+.budget-form { display: grid; gap: 12px; }
+.budget-period { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.budget-field { min-width: 0; display: grid; gap: 5px; }
+.budget-field label { color: var(--fm-text); font-size: .78rem; font-weight: 700; }
+.budget-field input, .budget-field select, .budget-field textarea {
+    width: 100%; min-height: 44px; padding: 8px 10px; border: 1px solid var(--fm-border); border-radius: 10px;
+    background: var(--fm-input-bg); color: var(--fm-text); font: inherit; font-size: .95rem;
+}
+.budget-field :focus-visible { outline: 2px solid var(--fm-blue); outline-offset: -1px; }
