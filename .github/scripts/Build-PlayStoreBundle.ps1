@@ -92,9 +92,9 @@ try {
     if ($bundles.Count -ne 1) { throw 'Expected exactly one signed App Bundle.' }
     $bundle = $bundles[0].FullName
 
-    $signature = & $jarsigner -J-Duser.language=en -verify $bundle
+    $signature = & $jarsigner '-J-Duser.language=en' -verify $bundle
     if (-not ($signature -match '^jar verified\.$')) { throw 'The App Bundle signature could not be verified.' }
-    & $java -jar $bundletool.FullName validate "--bundle=$bundle"
+    & $java -jar $bundletool.FullName validate "--bundle=$bundle" | Out-Null
 
     [xml]$manifest = (& $java -jar $bundletool.FullName dump manifest "--bundle=$bundle" '--module=base') -join "`n"
     $android = 'http://schemas.android.com/apk/res/android'
