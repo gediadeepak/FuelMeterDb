@@ -5,7 +5,6 @@ using FuelMeter.Core.Services.Interfaces;
 using Android.App;
 using Android.Content;
 using Android.OS;
-using AndroidX.Core.App;
 using Microsoft.Maui.ApplicationModel;
 #endif
 
@@ -31,21 +30,7 @@ public class NotificationSchedulerService : INotificationScheduler
         // Android 13+ (API 33) requires POST_NOTIFICATIONS runtime permission
         if (Build.VERSION.SdkInt >= BuildVersionCodes.Tiramisu)
         {
-            var status = await Permissions.RequestAsync<Permissions.PostNotifications>();
-            _ = status;
-        }
-
-        // Android 12+ (API 31) requires the user to allow exact alarms in system settings
-        if (Build.VERSION.SdkInt >= BuildVersionCodes.S)
-        {
-            var ctx = Android.App.Application.Context;
-            var am  = (AlarmManager?)ctx.GetSystemService(Context.AlarmService);
-            if (am is not null && !am.CanScheduleExactAlarms())
-            {
-                var intent = new Intent(Android.Provider.Settings.ActionRequestScheduleExactAlarm);
-                intent.SetFlags(ActivityFlags.NewTask);
-                ctx.StartActivity(intent);
-            }
+            await Permissions.RequestAsync<Permissions.PostNotifications>();
         }
 #endif
 #if WINDOWS
@@ -91,45 +76,9 @@ public class NotificationSchedulerService : INotificationScheduler
 
         var ctx = Android.App.Application.Context;
 
-        // Create notification channel (Android 8+)
-        if (Build.VERSION.SdkInt >= BuildVersionCodes.O)
-        {
-            var nm = (NotificationManager?)ctx.GetSystemService(Context.NotificationService);
-            if (nm?.GetNotificationChannel("fuelmeter_reminders") is null)
-            {
-                var ch = new Android.App.NotificationChannel(
-                    "fuelmeter_reminders", "FuelMeter Reminders",
-                    NotificationImportance.Default);
-                nm?.CreateNotificationChannel(ch);
-            }
-        }
-
-        var fireAt    = ComputeNextFire(frequency, hour, minute, dayOfWeek, dayOfMonth);
-        long triggerMs = new DateTimeOffset(fireAt).ToUnixTimeMilliseconds();
-
-        var intent = new Intent(ctx, typeof(NotificationBroadcastReceiver));
-        intent.PutExtra("notif_id",        id);
-        intent.PutExtra("notif_title",     title);
-        intent.PutExtra("notif_body",      body);
-        intent.PutExtra("notif_frequency", frequency);
-        intent.PutExtra("notif_hour",      hour);
-        intent.PutExtra("notif_minute",    minute);
-        intent.PutExtra("notif_dow",       dayOfWeek);
-        intent.PutExtra("notif_dom",       dayOfMonth);
-
-        var pending = PendingIntent.GetBroadcast(
-            ctx, id, intent,
-            PendingIntentFlags.UpdateCurrent | PendingIntentFlags.Immutable)!;
-
-        var am = (AlarmManager?)ctx.GetSystemService(Context.AlarmService);
-        if (am is null) return;
-
-        // SetExactAndAllowWhileIdle fires reliably in Doze mode (Android 6+).
-        // The receiver will reschedule the next occurrence so repetition works.
-        if (Build.VERSION.SdkInt >= BuildVersionCodes.M)
-            am.SetExactAndAllowWhileIdle(AlarmType.RtcWakeup, triggerMs, pending);
-        else
-            am.SetExact(AlarmType.RtcWakeup, triggerMs, pending);
+        NotificationBroadcastReceiver.EnsureChannel(ctx);
+        NotificationBroadcastReceiver.SaveExtras(ctx, id, title, body, frequency, hour, minute, dayOfWeek, dayOfMonth);
+        NotificationBroadcastReceiver.ScheduleNext(ctx, id, title, body, frequency, hour, minute, dayOfWeek, dayOfMonth);
 
 #elif WINDOWS
         EnsureWindowsRegistered();
@@ -145,9 +94,14 @@ public class NotificationSchedulerService : INotificationScheduler
         var intent  = new Intent(ctx, typeof(NotificationBroadcastReceiver));
         var pending = PendingIntent.GetBroadcast(
             ctx, id, intent,
-            PendingIntentFlags.UpdateCurrent | PendingIntentFlags.Immutable);
+            PendingIntentFlags.NoCreate | PendingIntentFlags.Immutable);
         var am = (AlarmManager?)ctx.GetSystemService(Context.AlarmService);
-        if (pending is not null) am?.Cancel(pending);
+        ctx.GetSharedPreferences("fuelmeter_notif", FileCreationMode.Private)?.Edit()?.Remove($"notif_{id}")?.Apply();
+        if (pending is not null)
+        {
+            am?.Cancel(pending);
+            pending.Cancel();
+        }
 #elif WINDOWS
         WindowsNotificationHelper.Cancel(id);
 #endif
@@ -163,7 +117,7 @@ public class NotificationSchedulerService : INotificationScheduler
 #endif
 
     // ── Date helpers ─────────────────────────────────────────────
-    private static DateTime ComputeNextFire(
+    internal static DateTime ComputeNextFire(
         string frequency, int hour, int minute, int dayOfWeek, int dayOfMonth)
     {
         var now = DateTime.Now;
