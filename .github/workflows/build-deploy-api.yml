@@ -12,6 +12,8 @@ on:
         required: true
       OPENAI_API_KEY:
         required: true
+      SMTP_PASSWORD:
+        required: true
 
 permissions:
   contents: read
@@ -75,6 +77,26 @@ jobs:
           $path = 'publish/api/appsettings.json'
           $settings = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json -AsHashtable
           $settings.MeterScan.OpenAiApiKey = $env:OPENAI_API_KEY
+          ConvertTo-Json -InputObject $settings -Depth 32 |
+            Set-Content -LiteralPath $path -Encoding utf8NoBOM
+
+      - name: Configure password reset email
+        shell: pwsh
+        env:
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:SMTP_PASSWORD)) {
+            throw 'Set the SMTP_PASSWORD Actions secret to the FuelMeter sender mailbox password.'
+          }
+          $path = 'publish/api/appsettings.json'
+          $settings = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json -AsHashtable
+          $email = $settings.EmailSettings
+          if (!$email -or [string]::IsNullOrWhiteSpace($email.SmtpHost) -or
+              [string]::IsNullOrWhiteSpace($email.Username) -or
+              [string]::IsNullOrWhiteSpace($email.SenderEmail)) {
+            throw 'The FuelMeter email host, username and sender must be configured.'
+          }
+          $email.Password = $env:SMTP_PASSWORD
           ConvertTo-Json -InputObject $settings -Depth 32 |
             Set-Content -LiteralPath $path -Encoding utf8NoBOM
 

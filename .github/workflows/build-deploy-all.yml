@@ -19,6 +19,7 @@ jobs:
       API_FTP_PASSWORD: ${{ secrets.API_FTP_PASSWORD }}
       API_DATABASE_CONNECTION: ${{ secrets.API_DATABASE_CONNECTION }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
 
   website:
     name: Website
