@@ -93,7 +93,10 @@ namespace FuelMeter
             builder.Services.AddSingleton<INotificationScheduler, NotificationSchedulerService>();
             builder.Services.AddSingleton<IMeterCamera, MeterCamera>();
 #if ANDROID
+            builder.Services.AddSingleton<ISubscriptionPurchases, FuelMeter.Platforms.Android.GooglePlayPurchases>();
             builder.Services.AddSingleton<IBudgetPushSettings, AndroidBudgetPushSettings>();
+#else
+            builder.Services.AddSingleton<ISubscriptionPurchases, UnavailableSubscriptionPurchases>();
 #endif
 
 #if DEBUG

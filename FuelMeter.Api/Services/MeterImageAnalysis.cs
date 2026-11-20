@@ -1,10 +1,13 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
 using FuelMeter.Core.DTOs;
+using FuelMeter.Data.Services;
 
 namespace FuelMeter.Api.Services;
 
-public sealed class MeterImageAnalysis(HttpClient http, IConfiguration config, ILogger<MeterImageAnalysis> logger)
+public sealed record MeterAnalysisResult(MeterScanResult Reading, string Model, int InputTokens, int OutputTokens);
+
+public sealed class MeterImageAnalysis(HttpClient http, IConfiguration config, SubscriptionSettings settings, ILogger<MeterImageAnalysis> logger)
 {
     private static readonly JsonElement Format = JsonSerializer.Deserialize<JsonElement>("""
         {
@@ -28,8 +31,10 @@ public sealed class MeterImageAnalysis(HttpClient http, IConfiguration config, I
         ? key
         : config["OPENAI_API_KEY"];
 
-    public async Task<MeterScanResult> AnalyzeAsync(byte[] image, string mediaType, CancellationToken cancellationToken)
+    public async Task<MeterAnalysisResult> AnalyzeAsync(byte[] image, string mediaType, CancellationToken cancellationToken)
     {
+        var policy = await settings.GetAsync(cancellationToken);
+        var model = policy.Text("Scan.Model");
         var host = config["MeterScan:OpenAiHost"] ?? "api.openai.com";
         if (Uri.CheckHostName(host) != UriHostNameType.Dns ||
             !(host.Equals("api.openai.com", StringComparison.OrdinalIgnoreCase) ||
@@ -41,7 +46,7 @@ public sealed class MeterImageAnalysis(HttpClient http, IConfiguration config, I
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", ApiKey);
         request.Content = JsonContent.Create(new
         {
-            model = config["MeterScan:Model"] ?? "gpt-5-mini",
+            model,
             store = false,
             reasoning = new { effort = "minimal" },
             max_output_tokens = 600,
@@ -75,8 +80,12 @@ public sealed class MeterImageAnalysis(HttpClient http, IConfiguration config, I
         response.EnsureSuccessStatusCode();
 
         var output = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
+        var inputTokens = output.TryGetProperty("usage", out var usage) && usage.TryGetProperty("input_tokens", out var input)
+            ? input.GetInt32() : 0;
+        var outputTokens = output.TryGetProperty("usage", out usage) && usage.TryGetProperty("output_tokens", out var tokens)
+            ? tokens.GetInt32() : 0;
         if (output.GetProperty("status").GetString() != "completed")
-            return new(null, null);
+            return new(new(null, null), model, inputTokens, outputTokens);
 
         foreach (var item in output.GetProperty("output").EnumerateArray())
         {
@@ -93,10 +102,10 @@ public sealed class MeterImageAnalysis(HttpClient http, IConfiguration config, I
                 var value = scan.RootElement.GetProperty("readingValue");
                 var reading = value.ValueKind == JsonValueKind.Number && value.TryGetDecimal(out var number) &&
                     number is >= 0 and <= 9999999 ? number : (decimal?)null;
-                return new(fuel is "Electricity" or "Gas" ? fuel : null, reading);
+                return new(new(fuel is "Electricity" or "Gas" ? fuel : null, reading), model, inputTokens, outputTokens);
             }
         }
 
-        return new(null, null);
+        return new(new(null, null), model, inputTokens, outputTokens);
     }
 }

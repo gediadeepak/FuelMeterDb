@@ -12,6 +12,10 @@ public class FuelMeterDbContext(DbContextOptions<FuelMeterDbContext> options) : 
     public DbSet<NotificationSettings> NotificationSettings => Set<NotificationSettings>();
     public DbSet<Budget> Budgets => Set<Budget>();
     public DbSet<PushInstallation> PushInstallations => Set<PushInstallation>();
+    public DbSet<ApplicationSetting> ApplicationSettings => Set<ApplicationSetting>();
+    public DbSet<AccountTrial> AccountTrials => Set<AccountTrial>();
+    public DbSet<AccountSubscription> AccountSubscriptions => Set<AccountSubscription>();
+    public DbSet<AiScanRequest> AiScanRequests => Set<AiScanRequest>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

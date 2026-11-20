@@ -153,11 +153,27 @@ public class AuthService(
         if (passwordHash is null || !BCrypt.Net.BCrypt.Verify(request.Password, passwordHash))
             return Fail("Your current password could not be verified.");
 
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        await SubscriptionAccountLock.AcquireAsync(db, userId, cancellationToken);
+        await db.ApplicationSettings.Where(x => x.Key == "Subscription.ComplimentaryUser." + userId)
+            .ExecuteDeleteAsync(cancellationToken);
+        var trial = await db.AccountTrials.SingleOrDefaultAsync(x => x.UserId == userId, cancellationToken);
+        if (trial is not null)
+        {
+            // Keep only the protected eligibility identity and trial dates after account deletion.
+            trial.UserId = null;
+            trial.DeletedAtUtc = DateTime.UtcNow;
+            var policy = await new SubscriptionSettings(db).GetAsync(cancellationToken);
+            trial.RetainUntilUtc = trial.DeletedAtUtc.Value.AddYears(policy.Number("Trial.RetentionYears", 1, 1));
+            await db.SaveChangesAsync(cancellationToken);
+        }
+
         // The foreign keys cascade to all account-owned records in the same database operation.
         var deleted = await db.Users
             .Where(user => user.Id == userId && user.IsActive && user.PasswordHash == passwordHash)
             .ExecuteDeleteAsync(cancellationToken);
 
+        if (deleted == 1) await transaction.CommitAsync(cancellationToken);
         return deleted == 1
             ? Ok("Your FuelMeter account has been deleted.")
             : Fail("Your account changed. Sign in again before retrying.");

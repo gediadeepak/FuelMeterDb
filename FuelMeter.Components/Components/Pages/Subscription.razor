@@ -1,0 +1,148 @@
+@page "/subscription"
+@layout MainLayout
+@inject IApiClientService Api
+@inject AuthStateService AuthState
+@inject IServiceProvider Services
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<PageTitle>Subscription | FuelMeter</PageTitle>
+
+<main class="subscription-page">
+    <h1>FuelMeter subscription</h1>
+    @if (_loading)
+    {
+        <p role="status">Loading your subscription…</p>
+    }
+    else if (_status is not null)
+    {
+        <section class="subscription-card">
+            <h2>@(_status.IsComplimentary ? "Complimentary access" : _status.HasSubscription ? "Your subscription" : _status.HasTrial ? "Your trial" : "AI meter scanning")</h2>
+            <p>@_status.Message</p>
+            @if (_status.HasSubscription || _status.HasTrial)
+            {
+                <p><strong>@_status.MonthlyRemaining of @_status.MonthlyAllowance</strong> scans remaining in this period.</p>
+                <p>@_status.DailyRemaining of @_status.DailyAllowance scans remaining today. Daily allowances reset at midnight UK time.</p>
+                @if (_status.AccessEndsAtUtc is not null)
+                {
+                    <p>Access ends <time datetime="@_status.AccessEndsAtUtc?.ToString("O")">@(_localEnd ?? _status.AccessEndsAtUtc?.ToString("u"))</time>.</p>
+                }
+            }
+            <p>Manual meter entry is free. Your subscription and scan allowance are shared when you use the same FuelMeter account on Android, Windows and the web.</p>
+            @if (_status.CanStartTrial)
+            {
+                <p>Start a 24-hour trial with one AI scan. Payment details are not required.</p>
+                <button class="subscription-primary" disabled="@_busy" @onclick="StartTrialAsync">Start free trial</button>
+            }
+            @if (_status.PurchasesEnabled)
+            {
+                @if (_offer is not null && !_status.HasSubscription)
+                {
+                    <p><strong>@_offer.Price per month</strong>, including applicable tax. Includes @_status.PaidMonthlyAllowance AI scans per subscription period, subject to the daily limit. Unused scans expire at renewal.</p>
+                    <p>Renews automatically through Google Play until cancelled. Cancel through Google Play to stop the next renewal. Your paid access normally continues to the end of the current period. Refunds and consumer rights are explained in the subscription terms.</p>
+                    <button class="subscription-primary" disabled="@_busy" @onclick="PurchaseAsync">Subscribe with Google Play</button>
+                }
+                else if (!_status.HasSubscription)
+                {
+                    <p>Google Play subscriptions are currently unavailable. You can continue entering readings manually.</p>
+                }
+                <button class="subscription-secondary" disabled="@_busy" @onclick="RestoreAsync">Restore Google Play purchase</button>
+            }
+            @if (_status.HasSubscription && !_status.IsComplimentary)
+            {
+                <p><a href="https://play.google.com/store/account/subscriptions" target="_blank" rel="noopener">Manage your subscription in Google Play</a></p>
+            }
+            <p><a href="/scan-meter">Add a meter reading</a></p>
+            <p><a href="_content/FuelMeter.Components/subscription-terms.html" data-enhance-nav="false">Subscription terms</a> · <a href="_content/FuelMeter.Components/privacy-policy.html" data-enhance-nav="false">Privacy policy</a></p>
+        </section>
+    }
+    @if (_message is not null)
+    {
+        <p role="status">@_message</p>
+    }
+    <button class="subscription-secondary" disabled="@(_busy || _loading)" @onclick="RefreshAsync">Refresh subscription</button>
+</main>
+
+@code {
+    private SubscriptionStatus? _status;
+    private SubscriptionOffer? _offer;
+    private ISubscriptionPurchases? _purchases;
+    private string? _message;
+    private string? _localEnd;
+    private bool _loading = true;
+    private bool _busy;
+    private string Platform => _purchases?.Platform ?? "Web";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthState.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+        _purchases = Services.GetService(typeof(ISubscriptionPurchases)) as ISubscriptionPurchases;
+        await RefreshAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_status?.AccessEndsAtUtc is { } end && _localEnd is null)
+        {
+            try
+            {
+                _localEnd = await JS.InvokeAsync<string>("fuelMeterSubscriptions.formatDate", end.ToString("O"));
+                StateHasChanged();
+            }
+            catch (JSException) { }
+        }
+    }
+
+    private async Task RefreshAsync()
+    {
+        _loading = true;
+        _offer = null;
+        try
+        {
+            _status = await Api.GetAsync<SubscriptionStatus>("api/subscriptions/status?platform=" + Platform);
+            _localEnd = null;
+            if (_status is { PurchasesEnabled: true, ProductId: not null, BasePlanId: not null } && _purchases is not null)
+                _offer = await _purchases.GetOfferAsync(_status.ProductId, _status.BasePlanId);
+        }
+        catch (Exception) { _message = "Could not load your subscription. Try again shortly."; }
+        finally { _loading = false; }
+    }
+
+    private Task StartTrialAsync() => ExecuteAsync(async () =>
+    {
+        await Api.PostAsync<object, SubscriptionActionResult>("api/subscriptions/trial/start", new { });
+        _message = "Your trial has started.";
+    });
+
+    private Task PurchaseAsync() => ExecuteAsync(async () =>
+    {
+        if (_status?.ProductId is null || _status.BasePlanId is null || _status.PurchaseAccountId is null || _purchases is null) return;
+        var tokens = await _purchases.PurchaseAsync(_status.ProductId, _status.BasePlanId, _status.PurchaseAccountId);
+        await VerifyAsync(tokens);
+    });
+
+    private Task RestoreAsync() => ExecuteAsync(async () =>
+    {
+        if (_purchases is not null) await VerifyAsync(await _purchases.RestoreAsync());
+    });
+
+    private async Task VerifyAsync(IReadOnlyList<string> tokens)
+    {
+        if (tokens.Count == 0) { _message = "No completed FuelMeter purchase was found. Pending payments become available after Google confirms them."; return; }
+        foreach (var token in tokens)
+            await Api.PostAsync<GooglePurchaseRequest, SubscriptionActionResult>("api/subscriptions/google/verify", new() { PurchaseToken = token });
+        _message = "Your Google Play purchase has been verified.";
+    }
+
+    private async Task ExecuteAsync(Func<Task> action)
+    {
+        if (_busy) return;
+        _busy = true;
+        _message = null;
+        try { await action(); }
+        catch (OperationCanceledException) { _message = "Purchase cancelled. Your subscription status has been refreshed."; }
+        catch (HttpRequestException) { _message = "Could not confirm this action. Check your FuelMeter account and try restoring your purchase."; }
+        catch (Exception) { _message = "Google Play could not complete this action. Try again shortly."; }
+        finally { await RefreshAsync(); _busy = false; }
+    }
+}

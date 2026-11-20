@@ -14,6 +14,12 @@ on:
         required: true
       SMTP_PASSWORD:
         required: true
+      SUBSCRIPTION_IDENTITY_KEY:
+        required: true
+      SUBSCRIPTION_TOKEN_KEY:
+        required: true
+      GOOGLE_PLAY_SERVICE_ACCOUNT_JSON:
+        required: false
 
 permissions:
   contents: read
@@ -21,7 +27,7 @@ permissions:
 jobs:
   build-deploy:
     name: Build and deploy API
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/codex/subscriptions-and-scan-credits'
     runs-on: windows-latest
     concurrency:
       group: plesk-api
@@ -97,6 +103,28 @@ jobs:
             throw 'The FuelMeter email host, username and sender must be configured.'
           }
           $email.Password = $env:SMTP_PASSWORD
+          ConvertTo-Json -InputObject $settings -Depth 32 |
+            Set-Content -LiteralPath $path -Encoding utf8NoBOM
+
+      - name: Configure subscription security
+        shell: pwsh
+        env:
+          IDENTITY_KEY: ${{ secrets.SUBSCRIPTION_IDENTITY_KEY }}
+          TOKEN_KEY: ${{ secrets.SUBSCRIPTION_TOKEN_KEY }}
+          GOOGLE_PLAY_CREDENTIALS: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          foreach ($key in @($env:IDENTITY_KEY, $env:TOKEN_KEY)) {
+            if ([string]::IsNullOrWhiteSpace($key) -or [Convert]::FromBase64String($key).Length -ne 32) {
+              throw 'Configure both 256-bit subscription security secrets before deploying.'
+            }
+          }
+          $path = 'publish/api/appsettings.json'
+          $settings = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json -AsHashtable
+          $settings.SubscriptionSecurity = @{
+            IdentityKey = $env:IDENTITY_KEY
+            PurchaseTokenKey = $env:TOKEN_KEY
+          }
+          $settings.GooglePlay = @{ CredentialJson = $env:GOOGLE_PLAY_CREDENTIALS }
           ConvertTo-Json -InputObject $settings -Depth 32 |
             Set-Content -LiteralPath $path -Encoding utf8NoBOM
 

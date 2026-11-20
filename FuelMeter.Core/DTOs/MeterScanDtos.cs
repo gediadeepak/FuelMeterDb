@@ -4,6 +4,7 @@ namespace FuelMeter.Core.DTOs;
 
 public sealed class MeterScanRequest
 {
+    public Guid IdempotencyKey { get; init; }
     public const int MaxImageBytes = 3 * 1024 * 1024;
 
     [Required, MinLength(1), MaxLength(MaxImageBytes)]

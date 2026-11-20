@@ -19,7 +19,7 @@ permissions:
 jobs:
   build-android:
     name: Build and release Android APK
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/codex/subscriptions-and-scan-credits'
     runs-on: windows-latest
 
     steps:

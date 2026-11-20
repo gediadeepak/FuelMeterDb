@@ -16,6 +16,8 @@ namespace FuelMeter
             base.OnCreate(null);
 
             var services = IPlatformApplication.Current?.Services;
+            if (services?.GetService<ISubscriptionPurchases>() is FuelMeter.Platforms.Android.GooglePlayPurchases billing)
+                services.GetRequiredService<AuthStateService>().OnAuthStateChanged += billing.Refresh;
             if (services?.GetService<IBudgetPushSettings>() is AndroidBudgetPushSettings push)
             {
                 var auth = services.GetRequiredService<AuthStateService>();
@@ -49,10 +51,20 @@ namespace FuelMeter
         protected override void OnDestroy()
         {
             var services = IPlatformApplication.Current?.Services;
+            if (services?.GetService<ISubscriptionPurchases>() is FuelMeter.Platforms.Android.GooglePlayPurchases billing)
+                services.GetRequiredService<AuthStateService>().OnAuthStateChanged -= billing.Refresh;
             if (services?.GetService<IBudgetPushSettings>() is AndroidBudgetPushSettings push)
                 services.GetRequiredService<AuthStateService>().OnAuthStateChanged -= push.Refresh;
 
             base.OnDestroy();
+        }
+
+        protected override void OnResume()
+        {
+            base.OnResume();
+            var services = IPlatformApplication.Current?.Services;
+            if (services?.GetService<ISubscriptionPurchases>() is FuelMeter.Platforms.Android.GooglePlayPurchases billing)
+                billing.Refresh();
         }
 
         protected override void OnSaveInstanceState(Bundle outState)

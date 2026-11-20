@@ -22,6 +22,348 @@ namespace FuelMeter.Data.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("FuelMeter.Core.Models.AccountSubscription", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<bool>("AutoRenewing")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("EncryptedPurchaseToken")
+                        .IsRequired()
+                        .HasMaxLength(8192)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("LastVerifiedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("LatestOrderId")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("PeriodEndUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("PeriodStartUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ProductId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("UserId", "PeriodEndUtc");
+
+                    b.ToTable("AccountSubscriptions");
+                });
+
+            modelBuilder.Entity("FuelMeter.Core.Models.AccountTrial", b =>
+                {
+                    b.Property<string>("IdentityHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime?>("DeletedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("EndsAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("RetainUntilUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("StartedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("IdentityHash");
+
+                    b.HasIndex("RetainUntilUtc");
+
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasFilter("[UserId] IS NOT NULL");
+
+                    b.ToTable("AccountTrials");
+                });
+
+            modelBuilder.Entity("FuelMeter.Core.Models.AiScanRequest", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime?>("CompletedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DayKey")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("FuelType")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<Guid>("IdempotencyKey")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ImageHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<int>("InputTokens")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ModelName")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("OutputTokens")
+                        .HasColumnType("int");
+
+                    b.Property<string>("PeriodKey")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<decimal?>("ReadingValue")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("ReservedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "IdempotencyKey")
+                        .IsUnique();
+
+                    b.HasIndex("UserId", "DayKey", "Status");
+
+                    b.HasIndex("UserId", "PeriodKey", "Status");
+
+                    b.ToTable("AiScanRequests");
+                });
+
+            modelBuilder.Entity("FuelMeter.Core.Models.ApplicationSetting", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("nvarchar(2048)");
+
+                    b.HasKey("Key");
+
+                    b.ToTable("ApplicationSettings");
+
+                    b.HasData(
+                        new
+                        {
+                            Key = "Subscription.Android.PurchasesEnabled",
+                            UpdatedAtUtc = new DateTime(2026, 11, 20, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Value = "true"
+                        },
+                        new
+                        {
+                            Key = "Subscription.Android.PremiumAccessEnabled",
+                            UpdatedAtUtc = new DateTime(2026, 11, 20, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Value = "true"
+                        },
+                        new
+                        {
+                            Key = "Subscription.Web.PurchasesEnabled",
+                            UpdatedAtUtc = new DateTime(2026, 11, 20, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Value = "false"
+                        },
+                        new
+                        {
+                            Key = "Subscription.Web.PremiumAccessEnabled",
+                            UpdatedAtUtc = new DateTime(2026, 11, 20, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Value = "true"
+                        },
+                        new
+                        {
+                            Key = "Subscription.Windows.PurchasesEnabled",
+                            UpdatedAtUtc = new DateTime(2026, 11, 20, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Value = "false"
+                        },
+                        new
+                        {
+                            Key = "Subscription.Windows.PremiumAccessEnabled",
+                            UpdatedAtUtc = new DateTime(2026, 11, 20, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Value = "true"
+                        },
+                        new
+                        {
+                            Key = "Subscription.iOS.PurchasesEnabled",
+                            UpdatedAtUtc = new DateTime(2026, 11, 20, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Value = "false"
+                        },
+                        new
+                        {
+                            Key = "Subscription.iOS.PremiumAccessEnabled",
+                            UpdatedAtUtc = new DateTime(2026, 11, 20, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Value = "false"
+                        },
+                        new
+                        {
+                            Key = "Subscription.Trial.Hours",
+                            UpdatedAtUtc = new DateTime(2026, 11, 20, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Value = "24"
+                        },
+                        new
+                        {
+                            Key = "Subscription.Trial.Scans",
+                            UpdatedAtUtc = new DateTime(2026, 11, 20, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Value = "1"
+                        },
+                        new
+                        {
+                            Key = "Subscription.Trial.RetentionYears",
+                            UpdatedAtUtc = new DateTime(2026, 11, 20, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Value = "1"
+                        },
+                        new
+                        {
+                            Key = "Subscription.Scans.Monthly",
+                            UpdatedAtUtc = new DateTime(2026, 11, 20, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Value = "30"
+                        },
+                        new
+                        {
+                            Key = "Subscription.Scans.Daily",
+                            UpdatedAtUtc = new DateTime(2026, 11, 20, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Value = "5"
+                        },
+                        new
+                        {
+                            Key = "Subscription.Scans.AttemptsDaily",
+                            UpdatedAtUtc = new DateTime(2026, 11, 20, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Value = "10"
+                        },
+                        new
+                        {
+                            Key = "Subscription.Scans.AttemptsMonthly",
+                            UpdatedAtUtc = new DateTime(2026, 11, 20, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Value = "60"
+                        },
+                        new
+                        {
+                            Key = "Subscription.Scans.ReservationSeconds",
+                            UpdatedAtUtc = new DateTime(2026, 11, 20, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Value = "120"
+                        },
+                        new
+                        {
+                            Key = "Subscription.Scans.TimeZone",
+                            UpdatedAtUtc = new DateTime(2026, 11, 20, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Value = "Europe/London"
+                        },
+                        new
+                        {
+                            Key = "Subscription.Google.PackageName",
+                            UpdatedAtUtc = new DateTime(2026, 11, 20, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Value = "com.fuelmeter.app"
+                        },
+                        new
+                        {
+                            Key = "Subscription.Google.ProductId",
+                            UpdatedAtUtc = new DateTime(2026, 11, 20, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Value = "fuelmeter_premium_monthly"
+                        },
+                        new
+                        {
+                            Key = "Subscription.Google.BasePlanId",
+                            UpdatedAtUtc = new DateTime(2026, 11, 20, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Value = "monthly"
+                        },
+                        new
+                        {
+                            Key = "Subscription.Google.NotificationAudience",
+                            UpdatedAtUtc = new DateTime(2026, 11, 20, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Value = ""
+                        },
+                        new
+                        {
+                            Key = "Subscription.Google.NotificationServiceAccount",
+                            UpdatedAtUtc = new DateTime(2026, 11, 20, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Value = ""
+                        },
+                        new
+                        {
+                            Key = "Subscription.Google.ReverifyMinutes",
+                            UpdatedAtUtc = new DateTime(2026, 11, 20, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Value = "5"
+                        },
+                        new
+                        {
+                            Key = "Subscription.Scan.Model",
+                            UpdatedAtUtc = new DateTime(2026, 11, 20, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Value = "gpt-5-mini"
+                        },
+                        new
+                        {
+                            Key = "Subscription.Scan.InputUsdPerMillionTokens",
+                            UpdatedAtUtc = new DateTime(2026, 11, 20, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Value = "0.25"
+                        },
+                        new
+                        {
+                            Key = "Subscription.Scan.OutputUsdPerMillionTokens",
+                            UpdatedAtUtc = new DateTime(2026, 11, 20, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Value = "2.00"
+                        },
+                        new
+                        {
+                            Key = "Subscription.PriceGBP",
+                            UpdatedAtUtc = new DateTime(2026, 11, 20, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Value = "1.99"
+                        });
+                });
+
             modelBuilder.Entity("FuelMeter.Core.Models.Budget", b =>
                 {
                     b.Property<int>("Id")
@@ -355,6 +697,32 @@ namespace FuelMeter.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("UserSettings", (string)null);
+                });
+
+            modelBuilder.Entity("FuelMeter.Core.Models.AccountSubscription", b =>
+                {
+                    b.HasOne("FuelMeter.Core.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("FuelMeter.Core.Models.AccountTrial", b =>
+                {
+                    b.HasOne("FuelMeter.Core.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+                });
+
+            modelBuilder.Entity("FuelMeter.Core.Models.AiScanRequest", b =>
+                {
+                    b.HasOne("FuelMeter.Core.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("FuelMeter.Core.Models.Budget", b =>

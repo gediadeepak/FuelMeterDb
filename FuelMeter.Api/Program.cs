@@ -4,6 +4,7 @@ using FuelMeter.Api.Extensions;
 using FuelMeter.Api.Options;
 using FuelMeter.Api.Services;
 using FuelMeter.Data;
+using FuelMeter.Data.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -11,6 +12,12 @@ using Microsoft.OpenApi;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddScoped<SubscriptionSettings>();
+builder.Services.AddScoped<SubscriptionSecurity>();
+builder.Services.AddScoped<SubscriptionService>();
+builder.Services.AddHttpClient<GooglePlaySubscriptions>(client => client.Timeout = TimeSpan.FromSeconds(20))
+    .RemoveAllLoggers();
+builder.Services.AddHostedService<SubscriptionMaintenance>();
 
 builder.Services.AddSingleton<FirebasePushService>();
 builder.Services.AddScoped<BudgetPushAlerts>();

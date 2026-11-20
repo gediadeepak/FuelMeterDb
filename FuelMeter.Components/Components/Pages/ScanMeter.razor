@@ -15,12 +15,15 @@
 
     <div class="scan-card">
         <div class="scan-tabs" role="tablist" aria-label="Meter reading method">
+            @if (_subscription?.CanScan == true)
+            {
             <button type="button" id="scan-automatic-tab" class="scan-tab" role="tab"
                     aria-selected="@(_automatic ? "true" : "false")" aria-controls="scan-automatic-panel"
                     tabindex="@(_automatic ? 0 : -1)" disabled="@IsBusy"
                     @ref="_automaticTab" @onclick="() => SelectTabAsync(true)" @onkeydown="HandleTabKeyAsync">
                 Automatic
             </button>
+            }
             <button type="button" id="scan-manual-tab" class="scan-tab" role="tab"
                     aria-selected="@(_automatic ? "false" : "true")" aria-controls="scan-manual-panel"
                     tabindex="@(_automatic ? -1 : 0)" disabled="@IsBusy"
@@ -28,6 +31,10 @@
                 Manual
             </button>
         </div>
+        @if (_subscription?.PremiumAccessEnabled == true)
+        {
+            <p class="scan-hint"><a href="/subscription">Subscription and AI scan allowance</a></p>
+        }
 
         <section id="scan-automatic-panel" class="scan-panel" role="tabpanel"
                  aria-labelledby="scan-automatic-tab" hidden="@(!_automatic)">
@@ -138,25 +145,39 @@
     private bool _processing;
     private bool _saving;
     private bool _disposed;
-    private bool _automatic = true;
+    private bool _automatic;
     private bool _hasCompleteScan;
+    private SubscriptionStatus? _subscription;
 
     private bool IsBusy => _opening || _processing || _saving;
     private bool CanSave => !IsBusy && !_cameraOpen && (!_automatic || _hasCompleteScan) && _readingDate.HasValue &&
         (_fuelType is "Electricity" or "Gas") &&
         _readingValue is >= 0 and <= 9999999 && decimal.Round(_readingValue.Value, 2) == _readingValue;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         if (!AuthState.IsAuthenticated)
+        {
             Nav.NavigateTo("/login");
+            return;
+        }
 
         _nativeCamera = Services.GetService(typeof(IMeterCamera)) as IMeterCamera;
+        var platform = (Services.GetService(typeof(ISubscriptionPurchases)) as ISubscriptionPurchases)?.Platform ?? "Web";
+        try
+        {
+            _subscription = await Api.GetAsync<SubscriptionStatus>("api/subscriptions/status?platform=" + platform);
+            _automatic = _subscription?.CanScan == true;
+        }
+        catch (Exception)
+        {
+            _scanMessage = "Subscription status is unavailable. You can enter readings manually.";
+        }
     }
 
     private async Task SelectTabAsync(bool automatic)
     {
-        if (IsBusy || _automatic == automatic)
+        if (IsBusy || _automatic == automatic || automatic && _subscription?.CanScan != true)
             return;
 
         await CloseCameraAsync();
@@ -165,6 +186,7 @@
 
     private async Task HandleTabKeyAsync(KeyboardEventArgs args)
     {
+        if (_subscription?.CanScan != true) return;
         var automatic = args.Key switch
         {
             "ArrowLeft" or "ArrowRight" => !_automatic,
@@ -319,7 +341,18 @@
 
             _preview = $"data:{imageType};base64,{Convert.ToBase64String(image)}";
             StateHasChanged();
-            var result = await Api.PostAsync<MeterScanRequest, MeterScanResult>("api/meter-scans", new() { Image = image });
+            var request = new MeterScanRequest { Image = image, IdempotencyKey = Guid.NewGuid() };
+            MeterScanResult? result;
+            try
+            {
+                result = await Api.PostAsync<MeterScanRequest, MeterScanResult>("api/meter-scans", request);
+            }
+            catch (HttpRequestException ex) when (ex.StatusCode is null or System.Net.HttpStatusCode.Conflict)
+            {
+                // A lost response must reuse the identifier so a completed scan is not charged twice.
+                await Task.Delay(1000);
+                result = await Api.PostAsync<MeterScanRequest, MeterScanResult>("api/meter-scans", request);
+            }
             if (_disposed)
                 return;
 
@@ -347,6 +380,7 @@
             _scanMessage = ex.StatusCode switch
             {
                 System.Net.HttpStatusCode.Unauthorized => "Sign in again to analyze a meter photo.",
+                System.Net.HttpStatusCode.PaymentRequired => "Your AI scan allowance is unavailable. Check your subscription or enter the reading manually.",
                 System.Net.HttpStatusCode.TooManyRequests => "Too many scans. Try again in a minute or enter the reading.",
                 System.Net.HttpStatusCode.ServiceUnavailable => "Automatic scanning hasn't been configured on this server.",
                 System.Net.HttpStatusCode.BadGateway => "Automatic scanning couldn't complete. Try again or enter the reading manually.",

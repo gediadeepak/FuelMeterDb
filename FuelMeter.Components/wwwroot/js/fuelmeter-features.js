@@ -240,3 +240,8 @@ window.fuelMeterStatement = (function () {
 
     return { downloadPdf, print };
 })();
+window.fuelMeterSubscriptions = {
+    formatDate: value => new Intl.DateTimeFormat(undefined, {
+        dateStyle: "medium", timeStyle: "short"
+    }).format(new Date(value))
+};
