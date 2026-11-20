@@ -23,7 +23,8 @@ public sealed class SubscriptionTests : IAsyncLifetime
     }).Build();
 
     private FuelMeterDbContext Database() => new(new DbContextOptionsBuilder<FuelMeterDbContext>()
-        .UseSqlServer($@"Server=(localdb)\MSSQLLocalDB;Database={_database};Integrated Security=true;TrustServerCertificate=true")
+        .UseSqlServer($@"Server=(localdb)\MSSQLLocalDB;Database={_database};Integrated Security=true;TrustServerCertificate=true",
+            sql => sql.EnableRetryOnFailure())
         .Options);
 
     private SubscriptionService Service(FuelMeterDbContext db) => new(db, new SubscriptionSettings(db),

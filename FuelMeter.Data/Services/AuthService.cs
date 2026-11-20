@@ -26,11 +26,11 @@ public class AuthService(
 
             var user = new User
             {
-                FullName     = request.FullName.Trim(),
-                Email        = emailLower,
+                FullName = request.FullName.Trim(),
+                Email = emailLower,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
-                CreatedAt    = DateTime.UtcNow,
-                IsActive     = true
+                CreatedAt = DateTime.UtcNow,
+                IsActive = true
             };
 
             db.Users.Add(user);
@@ -95,8 +95,8 @@ public class AuthService(
 
         db.PasswordResetTokens.Add(new PasswordResetToken
         {
-            UserId    = user.Id,
-            Token     = rawToken,
+            UserId = user.Id,
+            Token = rawToken,
             ExpiresAt = DateTime.UtcNow.AddHours(24),
             CreatedAt = DateTime.UtcNow
         });
@@ -134,8 +134,8 @@ public class AuthService(
             return Fail("The reset link is invalid or has expired. Please request a new one.");
 
         resetToken.User.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
-        resetToken.User.UpdatedAt    = DateTime.UtcNow;
-        resetToken.IsUsed            = true;
+        resetToken.User.UpdatedAt = DateTime.UtcNow;
+        resetToken.IsUsed = true;
 
         await db.SaveChangesAsync();
 
@@ -153,30 +153,36 @@ public class AuthService(
         if (passwordHash is null || !BCrypt.Net.BCrypt.Verify(request.Password, passwordHash))
             return Fail("Your current password could not be verified.");
 
-        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
-        await SubscriptionAccountLock.AcquireAsync(db, userId, cancellationToken);
-        await db.ApplicationSettings.Where(x => x.Key == "Subscription.ComplimentaryUser." + userId)
-            .ExecuteDeleteAsync(cancellationToken);
-        var trial = await db.AccountTrials.SingleOrDefaultAsync(x => x.UserId == userId, cancellationToken);
-        if (trial is not null)
+        return await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
         {
-            // Keep only the protected eligibility identity and trial dates after account deletion.
-            trial.UserId = null;
-            trial.DeletedAtUtc = DateTime.UtcNow;
-            var policy = await new SubscriptionSettings(db).GetAsync(cancellationToken);
-            trial.RetainUntilUtc = trial.DeletedAtUtc.Value.AddYears(policy.Number("Trial.RetentionYears", 1, 1));
-            await db.SaveChangesAsync(cancellationToken);
-        }
+            db.ChangeTracker.Clear();
+            await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+            await SubscriptionAccountLock.AcquireAsync(db, userId, cancellationToken);
+            await db.ApplicationSettings.Where(x => x.Key == "Subscription.ComplimentaryUser." + userId)
+                .ExecuteDeleteAsync(cancellationToken);
+            var trial = await db.AccountTrials.SingleOrDefaultAsync(x => x.UserId == userId, cancellationToken);
+            if (trial is not null)
+            {
+                // Keep only the protected eligibility identity and trial dates after account deletion.
+                trial.UserId = null;
+                trial.DeletedAtUtc = DateTime.UtcNow;
+                var policy = await new SubscriptionSettings(db).GetAsync(cancellationToken);
+                trial.RetainUntilUtc = trial.DeletedAtUtc.Value.AddYears(policy.Number("Trial.RetentionYears", 1, 1));
+                await db.SaveChangesAsync(cancellationToken);
+            }
 
-        // The foreign keys cascade to all account-owned records in the same database operation.
-        var deleted = await db.Users
-            .Where(user => user.Id == userId && user.IsActive && user.PasswordHash == passwordHash)
-            .ExecuteDeleteAsync(cancellationToken);
+            // The foreign keys cascade to all account-owned records in the same database operation.
+            var deleted = await db.Users
+                .Where(user => user.Id == userId && user.IsActive && user.PasswordHash == passwordHash)
+                .ExecuteDeleteAsync(cancellationToken);
 
-        if (deleted == 1) await transaction.CommitAsync(cancellationToken);
-        return deleted == 1
-            ? Ok("Your FuelMeter account has been deleted.")
-            : Fail("Your account changed. Sign in again before retrying.");
+            if (deleted == 1 || !await db.Users.AnyAsync(x => x.Id == userId, cancellationToken))
+            {
+                await transaction.CommitAsync(cancellationToken);
+                return Ok("Your FuelMeter account has been deleted.");
+            }
+            return Fail("Your account changed. Sign in again before retrying.");
+        });
     }
 
     // ── Helpers ──────────────────────────────────────────────────
@@ -190,13 +196,13 @@ public class AuthService(
     {
         Success = true,
         Message = message,
-        User    = user is null ? null : new UserDto
+        User = user is null ? null : new UserDto
         {
-            Id              = user.Id,
-            FullName        = user.FullName,
-            Email           = user.Email,
+            Id = user.Id,
+            FullName = user.FullName,
+            Email = user.Email,
             IsEmailVerified = user.IsEmailVerified,
-            LastLoginAt     = user.LastLoginAt
+            LastLoginAt = user.LastLoginAt
         }
     };
 

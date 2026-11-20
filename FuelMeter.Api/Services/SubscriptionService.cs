@@ -24,52 +24,52 @@ public sealed class SubscriptionService(
         {
             // Google eventually stops returning old purchase tokens. Expire only a token
             // already bound to this account, so old purchases cannot break its status page.
-            await using var expiryTransaction = await db.Database.BeginTransactionAsync(cancellationToken);
-            await SubscriptionAccountLock.AcquireAsync(db, userId, cancellationToken);
-            var expired = await db.AccountSubscriptions
-                .Where(x => x.UserId == userId && x.TokenHash == hash && x.LastVerifiedAtUtc <= requestedAtUtc)
-                .ExecuteUpdateAsync(x => x.SetProperty(s => s.State, "SUBSCRIPTION_STATE_EXPIRED")
-                    .SetProperty(s => s.LastVerifiedAtUtc, DateTime.UtcNow), cancellationToken);
-            if (expired == 0 && !await db.AccountSubscriptions.AnyAsync(x => x.UserId == userId && x.TokenHash == hash, cancellationToken))
-                throw new InvalidPurchaseException("Google Play could not verify this purchase.");
-            await expiryTransaction.CommitAsync(cancellationToken);
+            await SubscriptionAccountLock.ExecuteAsync(db, userId, async () =>
+            {
+                var expired = await db.AccountSubscriptions
+                    .Where(x => x.UserId == userId && x.TokenHash == hash && x.LastVerifiedAtUtc <= requestedAtUtc)
+                    .ExecuteUpdateAsync(x => x.SetProperty(s => s.State, "SUBSCRIPTION_STATE_EXPIRED")
+                        .SetProperty(s => s.LastVerifiedAtUtc, DateTime.UtcNow), cancellationToken);
+                if (expired == 0 && !await db.AccountSubscriptions.AnyAsync(x => x.UserId == userId && x.TokenHash == hash, cancellationToken))
+                    throw new InvalidPurchaseException("Google Play could not verify this purchase.");
+            }, cancellationToken);
             return;
         }
         if (verified.AccountId != security.AccountId(userId))
             throw new InvalidPurchaseException("Sign in to the FuelMeter account used for this purchase.");
-        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
-        await SubscriptionAccountLock.AcquireAsync(db, userId, cancellationToken);
-        if (!await db.Users.AnyAsync(x => x.Id == userId && x.IsActive, cancellationToken))
-            throw new InvalidPurchaseException("The FuelMeter account is unavailable.");
-        var subscription = await db.AccountSubscriptions.SingleOrDefaultAsync(x => x.TokenHash == hash, cancellationToken);
-        if (subscription is not null && subscription.UserId != userId)
-            throw new InvalidPurchaseException("This purchase is linked to a different FuelMeter account.");
-        subscription ??= new AccountSubscription { UserId = userId, TokenHash = hash };
-        // Older network responses cannot roll a renewed subscription back to an earlier paid period.
-        if (subscription.LastVerifiedAtUtc > requestedAtUtc)
-            return;
-        if (subscription.Id == 0) db.AccountSubscriptions.Add(subscription);
-        subscription.EncryptedPurchaseToken = security.EncryptToken(token);
-        subscription.ProductId = verified.ProductId;
-        subscription.State = verified.State;
-        subscription.PeriodEndUtc = verified.EndUtc;
-        subscription.PeriodStartUtc = verified.EndUtc.AddMonths(-1) > verified.StartUtc
-            ? verified.EndUtc.AddMonths(-1) : verified.StartUtc;
-        subscription.LastVerifiedAtUtc = DateTime.UtcNow;
-        subscription.LatestOrderId = verified.OrderId;
-        subscription.AutoRenewing = verified.AutoRenewing;
-        if (!string.IsNullOrWhiteSpace(verified.LinkedToken))
+        await SubscriptionAccountLock.ExecuteAsync(db, userId, async () =>
         {
-            var linkedHash = SubscriptionSecurity.TokenHash(verified.LinkedToken);
-            var linked = await db.AccountSubscriptions.SingleOrDefaultAsync(x => x.TokenHash == linkedHash, cancellationToken);
-            if (linked is not null)
+            if (!await db.Users.AnyAsync(x => x.Id == userId && x.IsActive, cancellationToken))
+                throw new InvalidPurchaseException("The FuelMeter account is unavailable.");
+            var subscription = await db.AccountSubscriptions.SingleOrDefaultAsync(x => x.TokenHash == hash, cancellationToken);
+            if (subscription is not null && subscription.UserId != userId)
+                throw new InvalidPurchaseException("This purchase is linked to a different FuelMeter account.");
+            subscription ??= new AccountSubscription { UserId = userId, TokenHash = hash };
+            // Older network responses cannot roll a renewed subscription back to an earlier paid period.
+            if (subscription.LastVerifiedAtUtc > requestedAtUtc)
+                return;
+            if (subscription.Id == 0) db.AccountSubscriptions.Add(subscription);
+            subscription.EncryptedPurchaseToken = security.EncryptToken(token);
+            subscription.ProductId = verified.ProductId;
+            subscription.State = verified.State;
+            subscription.PeriodEndUtc = verified.EndUtc;
+            subscription.PeriodStartUtc = verified.EndUtc.AddMonths(-1) > verified.StartUtc
+                ? verified.EndUtc.AddMonths(-1) : verified.StartUtc;
+            subscription.LastVerifiedAtUtc = DateTime.UtcNow;
+            subscription.LatestOrderId = verified.OrderId;
+            subscription.AutoRenewing = verified.AutoRenewing;
+            if (!string.IsNullOrWhiteSpace(verified.LinkedToken))
             {
-                if (linked.UserId != userId) throw new InvalidPurchaseException("A linked purchase belongs to another account.");
-                linked.State = "SUBSCRIPTION_STATE_EXPIRED";
+                var linkedHash = SubscriptionSecurity.TokenHash(verified.LinkedToken);
+                var linked = await db.AccountSubscriptions.SingleOrDefaultAsync(x => x.TokenHash == linkedHash, cancellationToken);
+                if (linked is not null)
+                {
+                    if (linked.UserId != userId) throw new InvalidPurchaseException("A linked purchase belongs to another account.");
+                    linked.State = "SUBSCRIPTION_STATE_EXPIRED";
+                }
             }
-        }
-        await db.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
+            await db.SaveChangesAsync(cancellationToken);
+        }, cancellationToken);
     }
 
     private async Task RefreshAsync(int userId, SubscriptionPolicy policy, CancellationToken cancellationToken)
@@ -159,25 +159,28 @@ public sealed class SubscriptionService(
     public async Task StartTrialAsync(int userId, CancellationToken cancellationToken)
     {
         var policy = await settings.GetAsync(cancellationToken);
-        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
-        await SubscriptionAccountLock.AcquireAsync(db, userId, cancellationToken);
-        var (subscription, activeTrial) = await AccessAsync(userId, cancellationToken);
-        if (subscription is not null || activeTrial is not null || policy.ComplimentaryUntil(userId) is not null)
-            throw new InvalidPurchaseException("Your account already has access.");
-        var email = await db.Users.Where(x => x.Id == userId && x.IsActive).Select(x => x.Email).SingleAsync(cancellationToken);
-        var hash = security.TrialIdentity(email);
-        var trial = await db.AccountTrials.SingleOrDefaultAsync(x => x.IdentityHash == hash, cancellationToken);
-        if (trial is not null && (trial.RetainUntilUtc == null || trial.RetainUntilUtc > DateTime.UtcNow))
-            throw new InvalidPurchaseException("This account has already used its trial.");
-        if (trial is not null) db.AccountTrials.Remove(trial);
-        await db.SaveChangesAsync(cancellationToken);
-        db.AccountTrials.Add(new AccountTrial
+        var activationTime = DateTime.UtcNow;
+        await SubscriptionAccountLock.ExecuteAsync(db, userId, async () =>
         {
-            IdentityHash = hash, UserId = userId, StartedAtUtc = DateTime.UtcNow,
-            EndsAtUtc = DateTime.UtcNow.AddHours(policy.Number("Trial.Hours", 1, 168))
-        });
-        await db.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
+            var (subscription, activeTrial) = await AccessAsync(userId, cancellationToken);
+            if (subscription is not null || activeTrial is not null || policy.ComplimentaryUntil(userId) is not null)
+                throw new InvalidPurchaseException("Your account already has access.");
+            var email = await db.Users.Where(x => x.Id == userId && x.IsActive).Select(x => x.Email).SingleAsync(cancellationToken);
+            var hash = security.TrialIdentity(email);
+            var trial = await db.AccountTrials.SingleOrDefaultAsync(x => x.IdentityHash == hash, cancellationToken);
+            if (trial is not null && (trial.RetainUntilUtc == null || trial.RetainUntilUtc > DateTime.UtcNow))
+                throw new InvalidPurchaseException("This account has already used its trial.");
+            if (trial is not null) db.AccountTrials.Remove(trial);
+            await db.SaveChangesAsync(cancellationToken);
+            db.AccountTrials.Add(new AccountTrial
+            {
+                IdentityHash = hash,
+                UserId = userId,
+                StartedAtUtc = activationTime,
+                EndsAtUtc = activationTime.AddHours(policy.Number("Trial.Hours", 1, 168))
+            });
+            await db.SaveChangesAsync(cancellationToken);
+        }, cancellationToken);
     }
 
     public async Task<ScanReservation> ReserveAsync(
@@ -187,53 +190,57 @@ public sealed class SubscriptionService(
         var policy = await settings.GetAsync(cancellationToken);
         await RefreshAsync(userId, policy, cancellationToken);
         var hash = Convert.ToHexString(SHA256.HashData(request.Image));
-        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
-        await SubscriptionAccountLock.AcquireAsync(db, userId, cancellationToken);
-        var cutoff = DateTime.UtcNow.AddSeconds(-policy.Number("Scans.ReservationSeconds", 60, 600));
-        await db.AiScanRequests.Where(x => x.UserId == userId && x.Status == "Reserved" && x.ReservedAtUtc <= cutoff)
-            .ExecuteUpdateAsync(x => x.SetProperty(s => s.Status, "Released").SetProperty(s => s.CompletedAtUtc, DateTime.UtcNow), cancellationToken);
-        var existing = await db.AiScanRequests.AsNoTracking().SingleOrDefaultAsync(
-            x => x.UserId == userId && x.IdempotencyKey == request.IdempotencyKey, cancellationToken);
-        if (existing is not null)
+        var reservationTime = DateTime.UtcNow;
+        return await SubscriptionAccountLock.ExecuteAsync<ScanReservation>(db, userId, async () =>
         {
-            if (existing.ImageHash != hash) throw new InvalidPurchaseException("This scan identifier was already used for another photo.");
-            if (existing.Status == "Reserved") throw new ScanBusyException();
-            await transaction.CommitAsync(cancellationToken);
-            return new(null, new(existing.FuelType, existing.ReadingValue));
-        }
-        // Access always requires an account entitlement, independently of any client platform flag.
-        var status = await StatusAsync(userId, "Account", policy, cancellationToken);
-        if (!status.CanScan) throw new ScanAccessException(status.Message);
-        var (subscription, trial) = await AccessAsync(userId, cancellationToken);
-        var scan = new AiScanRequest
-        {
-            UserId = userId, IdempotencyKey = request.IdempotencyKey, ImageHash = hash,
-            PeriodKey = PeriodKey(userId, policy, subscription, trial), DayKey = policy.DayKey(DateTime.UtcNow),
-            ReservedAtUtc = DateTime.UtcNow
-        };
-        db.AiScanRequests.Add(scan);
-        await db.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
-        return new(scan.Id, null);
+            var cutoff = DateTime.UtcNow.AddSeconds(-policy.Number("Scans.ReservationSeconds", 60, 600));
+            await db.AiScanRequests.Where(x => x.UserId == userId && x.Status == "Reserved" && x.ReservedAtUtc <= cutoff)
+                .ExecuteUpdateAsync(x => x.SetProperty(s => s.Status, "Released").SetProperty(s => s.CompletedAtUtc, DateTime.UtcNow), cancellationToken);
+            var existing = await db.AiScanRequests.AsNoTracking().SingleOrDefaultAsync(
+                x => x.UserId == userId && x.IdempotencyKey == request.IdempotencyKey, cancellationToken);
+            if (existing is not null)
+            {
+                if (existing.ImageHash != hash) throw new InvalidPurchaseException("This scan identifier was already used for another photo.");
+                if (existing.Status == "Reserved") throw new ScanBusyException();
+                return new(null, new(existing.FuelType, existing.ReadingValue));
+            }
+            // Access always requires an account entitlement, independently of any client platform flag.
+            var status = await StatusAsync(userId, "Account", policy, cancellationToken);
+            if (!status.CanScan) throw new ScanAccessException(status.Message);
+            var (subscription, trial) = await AccessAsync(userId, cancellationToken);
+            var scan = new AiScanRequest
+            {
+                UserId = userId,
+                IdempotencyKey = request.IdempotencyKey,
+                ImageHash = hash,
+                PeriodKey = PeriodKey(userId, policy, subscription, trial),
+                DayKey = policy.DayKey(DateTime.UtcNow),
+                ReservedAtUtc = reservationTime
+            };
+            db.AiScanRequests.Add(scan);
+            await db.SaveChangesAsync(cancellationToken);
+            return new(scan.Id, null);
+        }, cancellationToken);
     }
 
     public async Task CompleteAsync(int userId, long requestId, MeterAnalysisResult? result, CancellationToken cancellationToken)
     {
-        db.ChangeTracker.Clear();
-        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
-        await SubscriptionAccountLock.AcquireAsync(db, userId, cancellationToken);
-        var scan = await db.AiScanRequests.SingleOrDefaultAsync(x => x.Id == requestId && x.UserId == userId, cancellationToken);
-        if (scan is null) return; // Account deletion can remove an in-flight request.
-        if (scan.Status != "Reserved") throw new ScanBusyException();
-        scan.Status = result?.Reading is { FuelType: "Electricity" or "Gas", ReadingValue: not null } ? "Succeeded" : "Released";
-        scan.CompletedAtUtc = DateTime.UtcNow;
-        scan.FuelType = result?.Reading.FuelType;
-        scan.ReadingValue = result?.Reading.ReadingValue;
-        scan.ModelName = result?.Model;
-        scan.InputTokens = result?.InputTokens ?? 0;
-        scan.OutputTokens = result?.OutputTokens ?? 0;
-        await db.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
+        var completionTime = DateTime.UtcNow;
+        await SubscriptionAccountLock.ExecuteAsync(db, userId, async () =>
+        {
+            var scan = await db.AiScanRequests.SingleOrDefaultAsync(x => x.Id == requestId && x.UserId == userId, cancellationToken);
+            if (scan is null) return; // Account deletion can remove an in-flight request.
+            if (scan.CompletedAtUtc == completionTime) return;
+            if (scan.Status != "Reserved") throw new ScanBusyException();
+            scan.Status = result?.Reading is { FuelType: "Electricity" or "Gas", ReadingValue: not null } ? "Succeeded" : "Released";
+            scan.CompletedAtUtc = completionTime;
+            scan.FuelType = result?.Reading.FuelType;
+            scan.ReadingValue = result?.Reading.ReadingValue;
+            scan.ModelName = result?.Model;
+            scan.InputTokens = result?.InputTokens ?? 0;
+            scan.OutputTokens = result?.OutputTokens ?? 0;
+            await db.SaveChangesAsync(cancellationToken);
+        }, cancellationToken);
     }
 }
 
