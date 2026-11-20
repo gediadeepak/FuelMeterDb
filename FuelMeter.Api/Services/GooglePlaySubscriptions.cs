@@ -40,7 +40,9 @@ public sealed class GooglePlaySubscriptions(HttpClient http, IConfiguration conf
         using var request = await RequestAsync(HttpMethod.Get,
             $"{package}/purchases/subscriptionsv2/tokens/{Uri.EscapeDataString(purchaseToken)}", cancellationToken);
         using var response = await http.SendAsync(request, cancellationToken);
-        if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Gone or HttpStatusCode.BadRequest)
+        if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Gone)
+            throw new GooglePurchaseUnavailableException();
+        if (response.StatusCode == HttpStatusCode.BadRequest)
             throw new InvalidPurchaseException("Google Play could not verify this purchase.");
         if (!response.IsSuccessStatusCode)
             throw new InvalidOperationException("Google Play purchase verification is temporarily unavailable.");
@@ -83,3 +85,4 @@ public sealed class GooglePlaySubscriptions(HttpClient http, IConfiguration conf
 }
 
 public sealed class InvalidPurchaseException(string message) : Exception(message);
+public sealed class GooglePurchaseUnavailableException : Exception;

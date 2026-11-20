@@ -17,10 +17,26 @@ public sealed class SubscriptionService(
     {
         var requestedAtUtc = DateTime.UtcNow;
         var policy = await settings.GetAsync(cancellationToken);
-        var verified = await google.VerifyAsync(policy, token, cancellationToken);
+        var hash = SubscriptionSecurity.TokenHash(token);
+        VerifiedGoogleSubscription verified;
+        try { verified = await google.VerifyAsync(policy, token, cancellationToken); }
+        catch (GooglePurchaseUnavailableException)
+        {
+            // Google eventually stops returning old purchase tokens. Expire only a token
+            // already bound to this account, so old purchases cannot break its status page.
+            await using var expiryTransaction = await db.Database.BeginTransactionAsync(cancellationToken);
+            await SubscriptionAccountLock.AcquireAsync(db, userId, cancellationToken);
+            var expired = await db.AccountSubscriptions
+                .Where(x => x.UserId == userId && x.TokenHash == hash && x.LastVerifiedAtUtc <= requestedAtUtc)
+                .ExecuteUpdateAsync(x => x.SetProperty(s => s.State, "SUBSCRIPTION_STATE_EXPIRED")
+                    .SetProperty(s => s.LastVerifiedAtUtc, DateTime.UtcNow), cancellationToken);
+            if (expired == 0 && !await db.AccountSubscriptions.AnyAsync(x => x.UserId == userId && x.TokenHash == hash, cancellationToken))
+                throw new InvalidPurchaseException("Google Play could not verify this purchase.");
+            await expiryTransaction.CommitAsync(cancellationToken);
+            return;
+        }
         if (verified.AccountId != security.AccountId(userId))
             throw new InvalidPurchaseException("Sign in to the FuelMeter account used for this purchase.");
-        var hash = SubscriptionSecurity.TokenHash(token);
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         await SubscriptionAccountLock.AcquireAsync(db, userId, cancellationToken);
         if (!await db.Users.AnyAsync(x => x.Id == userId && x.IsActive, cancellationToken))
