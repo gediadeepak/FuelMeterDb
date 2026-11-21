@@ -28,6 +28,9 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      - name: Verify reset-link navigation
+        run: dotnet test FuelMeter.Tests/FuelMeter.Tests.csproj -c Release --filter "FullyQualifiedName~ResetStartupTests|FullyQualifiedName~PasswordResetLinkTests" --verbosity minimal
+
       - uses: actions/setup-java@v4
         with:
           distribution: microsoft

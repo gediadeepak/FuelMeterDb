@@ -9,6 +9,11 @@ public sealed class PasswordResetLinks
     private string? _pendingRoute;
     public event Action? LinkReceived;
 
+    public string? PendingRoute
+    {
+        get { lock (_gate) return _pendingRoute; }
+    }
+
     public static bool TryGetRoute(Uri? uri, out string route)
     {
         route = string.Empty;
@@ -43,13 +48,14 @@ public sealed class PasswordResetLinks
         return true;
     }
 
-    public string? TakePendingRoute()
+    public bool Acknowledge(string? displayedToken)
     {
         lock (_gate)
         {
-            var route = _pendingRoute;
+            if (displayedToken is null || _pendingRoute != ResetPath + "?token=" + displayedToken)
+                return false;
             _pendingRoute = null;
-            return route;
+            return true;
         }
     }
 

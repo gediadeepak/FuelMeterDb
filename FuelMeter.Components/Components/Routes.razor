@@ -4,7 +4,7 @@
 @inject NavigationManager Navigation
 @inject PasswordResetLinks ResetLinks
 @implements IDisposable
-@if (_sessionLoaded)
+@if (_sessionLoaded && ResetLocationReady)
 {
     <ErrorBoundary>
         <ChildContent>
@@ -128,21 +128,44 @@ else
 
 @code {
     private bool _sessionLoaded;
+    private string? _requestedResetRoute;
 
-    protected override void OnInitialized() => ResetLinks.LinkReceived += HandleResetLink;
+    private bool ResetLocationReady => ResetLinks.PendingRoute is not { } pending ||
+        new Uri(Navigation.Uri).PathAndQuery == pending;
+
+    protected override void OnInitialized()
+    {
+        ResetLinks.LinkReceived += HandleResetLink;
+        Navigation.LocationChanged += HandleLocationChanged;
+    }
 
     private void HandleResetLink() => _ = InvokeAsync(() =>
     {
-        if (_sessionLoaded) NavigatePendingResetLink();
+        if (!_sessionLoaded) return;
+        NavigatePendingResetLink();
+        StateHasChanged();
     });
+
+    private void HandleLocationChanged(object? sender, LocationChangedEventArgs args)
+    {
+        _requestedResetRoute = null;
+        if (ResetLinks.PendingRoute is not null) HandleResetLink();
+    }
 
     private void NavigatePendingResetLink()
     {
-        if (ResetLinks.TakePendingRoute() is { } route)
-            Navigation.NavigateTo(route, replace: true);
+        var route = ResetLinks.PendingRoute;
+        if (route is null || new Uri(Navigation.Uri).PathAndQuery == route || _requestedResetRoute == route)
+            return;
+        _requestedResetRoute = route;
+        Navigation.NavigateTo(route, replace: true);
     }
 
-    public void Dispose() => ResetLinks.LinkReceived -= HandleResetLink;
+    public void Dispose()
+    {
+        ResetLinks.LinkReceived -= HandleResetLink;
+        Navigation.LocationChanged -= HandleLocationChanged;
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {

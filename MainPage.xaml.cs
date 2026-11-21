@@ -6,9 +6,10 @@ namespace FuelMeter
     {
         private bool _splashAnimated;
 
-        public MainPage()
+        public MainPage(FuelMeter.Core.Services.PasswordResetLinks? resetLinks = null)
         {
             InitializeComponent();
+            blazorWebView.StartPath = resetLinks?.PendingRoute ?? "/";
 
             // Register the MAUI-local Routes component as the Blazor root.
             // Using typeof() here (not XAML) ensures the Razor assembly is

@@ -35,12 +35,16 @@ public class PasswordResetLinkTests
         Assert.False(PasswordResetLinks.TryGetRoute(new Uri(Link + suffix), out _));
 
     [Fact]
-    public void AColdStartLinkWaitsForTheRouterAndIsConsumedOnce()
+    public void AColdStartLinkWaitsUntilItsResetScreenAcknowledgesIt()
     {
         var links = new PasswordResetLinks();
         Assert.True(links.Receive(new Uri(Link)));
-        Assert.Equal("/reset-password?token=" + Token, links.TakePendingRoute());
-        Assert.Null(links.TakePendingRoute());
+        Assert.Equal("/reset-password?token=" + Token, links.PendingRoute);
+        Assert.False(links.Acknowledge(new string('B', 43)));
+        Assert.NotNull(links.PendingRoute);
+        Assert.True(links.Acknowledge(Token));
+        Assert.Null(links.PendingRoute);
+        Assert.False(links.Acknowledge(Token));
     }
 
     [Fact]
@@ -48,10 +52,12 @@ public class PasswordResetLinkTests
     {
         var links = new PasswordResetLinks();
         string? route = null;
-        links.LinkReceived += () => route = links.TakePendingRoute();
+        links.LinkReceived += () => route = links.PendingRoute;
         Assert.True(links.Receive(new Uri(Link)));
         Assert.Equal("/reset-password?token=" + Token, route);
-        Assert.Null(links.TakePendingRoute());
+        Assert.NotNull(links.PendingRoute);
+        Assert.True(links.Acknowledge(Token));
+        Assert.Null(links.PendingRoute);
         Assert.False(links.Receive(new Uri("https://evil.example/reset-password?token=" + Token)));
     }
 

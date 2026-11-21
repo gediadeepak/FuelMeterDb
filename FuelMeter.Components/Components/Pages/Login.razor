@@ -8,6 +8,7 @@
 @inject IAuthService AuthService
 @inject AuthStateService AuthState
 @inject NavigationManager Nav
+@inject PasswordResetLinks ResetLinks
 
 <div class="auth-page">
     <div class="auth-card">
@@ -85,14 +86,18 @@
     private bool _loginSuccess;
     private string _errorMessage = string.Empty;
 
+    private string SignInDestination => ResetLinks.PendingRoute ??
+        (DeleteAccount is true ? "/delete-account" : "/dashboard");
+
     protected override void OnInitialized()
     {
         if (AuthState.IsAuthenticated)
-            Nav.NavigateTo(DeleteAccount is true ? "/delete-account" : "/dashboard", replace: true);
+            Nav.NavigateTo(SignInDestination, replace: true);
     }
 
     private async Task HandleLoginAsync()
     {
+        var startingLocation = Nav.Uri;
         _isBusy = true;
         _errorMessage = string.Empty;
         _loginSuccess = false;
@@ -114,7 +119,8 @@
                 await AuthState.SignInAsync(result.User, result.Token, result.ExpiresAt, _model.StaySignedIn);
                 _loginSuccess = true;
                 await Task.Delay(600);
-                Nav.NavigateTo(DeleteAccount is true ? "/delete-account" : "/dashboard");
+                if (Nav.Uri == startingLocation)
+                    Nav.NavigateTo(SignInDestination);
             }
             else
             {

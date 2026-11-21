@@ -9,15 +9,17 @@ using FuelMeter.Services;
 
 namespace FuelMeter
 {
-    [Activity(Theme = "@style/Maui.SplashTheme", MainLauncher = true, LaunchMode = LaunchMode.SingleTop, ConfigurationChanges = ConfigChanges.ScreenSize | ConfigChanges.Orientation | ConfigChanges.UiMode | ConfigChanges.ScreenLayout | ConfigChanges.SmallestScreenSize | ConfigChanges.Density)]
+    [Activity(Theme = "@style/Maui.SplashTheme", MainLauncher = true, LaunchMode = LaunchMode.SingleTask, ConfigurationChanges = ConfigChanges.ScreenSize | ConfigChanges.Orientation | ConfigChanges.UiMode | ConfigChanges.ScreenLayout | ConfigChanges.SmallestScreenSize | ConfigChanges.Density)]
     [IntentFilter([Android.Content.Intent.ActionView], Categories = [Android.Content.Intent.CategoryDefault, Android.Content.Intent.CategoryBrowsable],
         DataScheme = "https", DataHost = PasswordResetLinks.Host, DataPath = PasswordResetLinks.ResetPath, AutoVerify = true)]
     public class MainActivity : MauiAppCompatActivity
     {
         protected override void OnCreate(Bundle? savedInstanceState)
         {
+            // Capture before MAUI creates the Window so Blazor can start on the reset route.
+            var resetQueued = HandleResetLink(Intent);
             base.OnCreate(null);
-            HandleResetLink(Intent);
+            if (!resetQueued) HandleResetLink(Intent);
 
             var services = IPlatformApplication.Current?.Services;
             if (services?.GetService<ISubscriptionPurchases>() is FuelMeter.Platforms.Android.GooglePlayPurchases billing)
@@ -55,13 +57,15 @@ namespace FuelMeter
         protected override void OnNewIntent(Intent? intent)
         {
             base.OnNewIntent(intent);
+            if (intent is not null) Intent = intent;
             HandleResetLink(intent);
         }
 
-        private static void HandleResetLink(Intent? intent)
+        private static bool HandleResetLink(Intent? intent)
         {
             if (intent?.Action == Android.Content.Intent.ActionView && Uri.TryCreate(intent.DataString, UriKind.Absolute, out var uri))
-                Microsoft.Maui.Controls.Application.Current?.SendOnAppLinkRequestReceived(uri);
+                return IPlatformApplication.Current?.Services.GetService<PasswordResetLinks>()?.Receive(uri) == true;
+            return false;
         }
 
         protected override void OnDestroy()

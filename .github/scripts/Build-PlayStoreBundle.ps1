@@ -115,6 +115,7 @@ try {
     $resetFilters = @($app.SelectNodes('activity/intent-filter') | Where-Object {
         $data = @($_.SelectNodes('data'))
         $_.GetAttribute('autoVerify', $android) -eq 'true' -and
+        $_.ParentNode.GetAttribute('launchMode', $android) -in @('singleTask', '2') -and
         @($data | Where-Object { $_.GetAttribute('scheme', $android) -eq 'https' }).Count -gt 0 -and
         @($data | Where-Object { $_.GetAttribute('host', $android) -eq 'fuelmeter.shrijiitservices.com' }).Count -gt 0 -and
         @($data | Where-Object { $_.GetAttribute('path', $android) -eq '/reset-password' }).Count -gt 0

@@ -31,6 +31,9 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      - name: Verify reset-link navigation
+        run: dotnet test FuelMeter.Tests/FuelMeter.Tests.csproj -c Release --filter "FullyQualifiedName~ResetStartupTests|FullyQualifiedName~PasswordResetLinkTests" --verbosity minimal
+
       - name: Install MAUI Workloads
         run: dotnet workload install maui
 

@@ -23,7 +23,7 @@
             // Window.Page after the page has been attached caused Android to
             // crash with "No view found for id ... jumpToStart" inside the
             // AndroidX fragment manager.
-            return new Window(new MainPage()) { Title = "FuelMeter" };
+            return new Window(new MainPage(_resetLinks)) { Title = "FuelMeter" };
         }
     }
 }
