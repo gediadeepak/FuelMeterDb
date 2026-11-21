@@ -1,4 +1,5 @@
-.amr-page { display: flex; flex-direction: column; gap: 18px; }
+.amr-page { display: flex; flex-direction: column; gap: 20px; width: 100%; max-width: 760px; min-width: 0; margin: 0 auto; }
+.amr-page, .amr-page * { box-sizing: border-box; }
 
 .amr-title    { font-size: 1.5rem; font-weight: 700; color: var(--fm-text); margin: 0; }
 .amr-subtitle { font-size: .88rem; color: var(--fm-muted); margin: 4px 0 0; }
@@ -15,21 +16,24 @@
 .amr-card {
     background: var(--fm-card);
     border: 1px solid var(--fm-border);
-    border-radius: 16px;
-    padding: 22px 18px;
+    border-radius: 24px;
+    padding: 28px;
     display: flex;
     flex-direction: column;
     gap: 18px;
-    box-shadow: 0 1px 6px rgba(0,0,0,.06);
+    box-shadow: var(--fm-shadow-card);
+    min-width: 0;
 }
+
+.amr-card ::deep form { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
 
 .amr-form-row {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 14px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px;
 }
 
-.form-group { display: flex; flex-direction: column; gap: 6px; }
+.form-group { display: flex; flex-direction: column; gap: 8px; min-width: 0; margin: 0; }
 
 .amr-label {
     font-size: .78rem;
@@ -46,32 +50,42 @@
     text-transform: none;
 }
 
-.amr-input,
-.amr-select {
+.amr-card ::deep .amr-input,
+.amr-card ::deep .amr-select {
     border: 1.5px solid var(--fm-border);
-    border-radius: 10px;
-    padding: 11px 13px;
-    font-size: .95rem;
+    border-radius: 12px;
+    padding: 13px 16px;
+    font: inherit;
+    font-size: 16px;
+    min-height: 50px;
+    min-width: 0;
+    max-width: 100%;
     background: var(--fm-input-bg);
     color: var(--fm-text);
     outline: none;
     width: 100%;
     box-sizing: border-box;
-    transition: border-color .2s;
+    transition: border-color .2s, box-shadow .2s;
     -webkit-appearance: none;
     appearance: none;
 }
 
-.amr-select {
+.amr-card ::deep .amr-select {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%231976D2' d='M6 8L0 0h12z'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: right 14px center;
     padding-right: 36px;
 }
 
-.amr-input:focus, .amr-select:focus { border-color: var(--fm-blue); }
+.amr-card ::deep .amr-input:focus, .amr-card ::deep .amr-select:focus {
+    border-color: var(--fm-blue-bright);
+    box-shadow: 0 0 0 4px rgba(41, 121, 255, .12);
+    background-color: var(--fm-card);
+}
+.amr-card ::deep .amr-input::placeholder { color: var(--fm-muted); opacity: .75; }
+.amr-card ::deep .amr-input.invalid, .amr-card ::deep .amr-select.invalid { border-color: var(--fm-error); }
 
-.val-msg { font-size: .78rem; color: var(--fm-error); margin-top: 2px; }
+.amr-card ::deep .val-msg { font-size: .78rem; color: var(--fm-error); margin-top: 2px; overflow-wrap: anywhere; }
 
 /* Actions */
 .amr-actions {
@@ -91,24 +105,29 @@
     font-weight: 700;
     cursor: pointer;
     transition: opacity .2s;
+    box-shadow: var(--fm-shadow-blue);
 }
+
+.amr-btn-primary, .amr-btn-secondary { min-height: 50px; font-family: inherit; }
+.amr-btn-primary span, .amr-btn-secondary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.amr-btn-primary:focus-visible, .amr-btn-secondary:focus-visible { outline: 2px solid var(--fm-blue-bright); outline-offset: 3px; }
 
 .amr-btn-primary:disabled { opacity: .6; cursor: not-allowed; }
 .amr-btn-primary:hover:not(:disabled) { opacity: .88; }
 
 .amr-btn-secondary {
     padding: 13px 22px;
-    background: #F0F4FF;
+    background: #E8EAF6;
     color: var(--fm-text);
-    border: 1.5px solid var(--fm-border);
+    border: none;
     border-radius: 12px;
     font-size: .98rem;
-    font-weight: 600;
+    font-weight: 700;
     cursor: pointer;
     transition: background .15s;
 }
 
-.amr-btn-secondary:hover { background: var(--fm-border); }
+.amr-btn-secondary:hover { background: #C5CAE9; }
 
 /* Hint */
 .amr-hint {
@@ -118,4 +137,16 @@
     padding: 11px 14px;
     font-size: .82rem;
     color: var(--fm-muted);
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+    .amr-card { padding: 22px 18px; border-radius: 20px; }
+    .amr-form-row { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 380px) {
+    .amr-actions { flex-direction: column; }
+    .amr-btn-primary, .amr-btn-secondary { width: 100%; }
 }

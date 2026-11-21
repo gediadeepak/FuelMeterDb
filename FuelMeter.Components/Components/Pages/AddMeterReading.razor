@@ -31,8 +31,8 @@
 
             <div class="amr-form-row">
                 <div class="form-group">
-                    <label class="amr-label">Fuel type</label>
-                    <InputSelect class="amr-select" @bind-Value="_model.FuelType">
+                    <label class="amr-label" for="reading-fuel-type">Fuel type</label>
+                    <InputSelect id="reading-fuel-type" class="amr-select" @bind-Value="_model.FuelType">
                         <option value="Electricity">Electricity</option>
                         <option value="Gas">Gas</option>
                     </InputSelect>
@@ -40,23 +40,23 @@
                 </div>
 
                 <div class="form-group">
-                    <label class="amr-label">Reading date</label>
-                    <InputDate class="amr-input" @bind-Value="_model.ReadingDate" />
+                    <label class="amr-label" for="reading-date">Reading date</label>
+                    <InputDate id="reading-date" class="amr-input" @bind-Value="_model.ReadingDate" />
                     <ValidationMessage For="() => _model.ReadingDate" class="val-msg" />
                 </div>
             </div>
 
             <div class="amr-form-row">
                 <div class="form-group">
-                    <label class="amr-label">Meter reading</label>
-                    <InputNumber class="amr-input" @bind-Value="_model.ReadingValue"
-                                 placeholder="e.g. 51220" />
+                    <label class="amr-label" for="reading-value">Meter reading</label>
+                    <InputNumber id="reading-value" class="amr-input" @bind-Value="_model.ReadingValue"
+                                 inputmode="decimal" placeholder="e.g. 51220" />
                     <ValidationMessage For="() => _model.ReadingValue" class="val-msg" />
                 </div>
 
                 <div class="form-group">
-                    <label class="amr-label">Notes <span class="amr-optional">optional</span></label>
-                    <InputText class="amr-input" @bind-Value="_model.Notes"
+                    <label class="amr-label" for="reading-notes">Notes <span class="amr-optional">optional</span></label>
+                    <InputText id="reading-notes" class="amr-input" @bind-Value="_model.Notes"
                                placeholder="Optional note" />
                 </div>
             </div>

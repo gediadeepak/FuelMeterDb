@@ -1,0 +1,70 @@
+/* Shared form theme for both Blazor Web and the native WebViews.
+   Loaded after scoped styles so component-generated controls get the same theme. */
+:root :is(.main-content, .auth-page) :is(input:where(:not([type=checkbox], [type=radio], [type=file], [type=hidden], [type=button], [type=submit], [type=range], [type=color])), select, textarea) {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    min-height: 50px;
+    border: 1.5px solid var(--fm-border);
+    border-radius: 12px;
+    padding: 13px 16px;
+    background-color: var(--fm-input-bg);
+    color: var(--fm-text);
+    font: inherit;
+    font-size: 16px;
+    line-height: 1.4;
+    outline: none;
+    transition: border-color .2s, box-shadow .2s;
+}
+:root :is(.main-content, .auth-page) select {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%231976D2' d='M6 8L0 0h12z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 16px center;
+    padding-right: 40px;
+}
+:root :is(.main-content, .auth-page) textarea { resize: vertical; }
+:root :is(.main-content, .auth-page) :is(input, select, textarea):focus-visible {
+    border-color: var(--fm-blue-bright);
+    box-shadow: 0 0 0 4px rgba(41, 121, 255, .12);
+    background-color: var(--fm-card);
+}
+:root :is(.main-content, .auth-page) :is(input, textarea)::placeholder { color: var(--fm-muted); opacity: .75; }
+:root :is(.main-content, .auth-page) :is(input, select, textarea):disabled { opacity: .65; cursor: not-allowed; }
+:root :is(.main-content, .auth-page) :is(input, select, textarea).invalid { border-color: var(--fm-error); }
+:root :is(.main-content, .auth-page) input[type=checkbox] { accent-color: var(--fm-blue); width: 20px; height: 20px; vertical-align: middle; flex-shrink: 0; }
+:root :is(.main-content, .auth-page) .password-wrapper input { padding-right: 48px; }
+:root .main-content .dash-month-select { width: auto; }
+:root .main-content :is(.form-group, .scan-field, .budget-field, .amr-form-row, .mrg-filters) { min-width: 0; }
+:root :is(.main-content, .auth-page) :is(.form-group, .scan-field, .budget-field) > label { color: var(--fm-text); font-weight: 700; font-size: .78rem; letter-spacing: .4px; text-transform: uppercase; }
+:root :is(.main-content, .auth-page) .validation-message { overflow-wrap: anywhere; }
+:root .main-content :is(.btn-save, .budget-button.primary, .scan-btn-primary, .amr-btn-primary) { background: var(--fm-grad-primary); color: #fff; border: none; border-radius: 12px; box-shadow: var(--fm-shadow-blue); font-weight: 700; min-height: 50px; }
+:root .main-content :is(.budget-button, .scan-btn, .amr-btn-secondary) { font-family: inherit; }
+:root .main-content button:focus-visible { outline: 2px solid var(--fm-blue-bright); outline-offset: 3px; }
+
+/* Settings and reminders intentionally share the same form structure. */
+.settings-page { display: flex; flex-direction: column; gap: 20px; min-width: 0; width: 100%; max-width: 760px; margin: 0 auto; }
+.settings-title { font-size: 1.5rem; font-weight: 700; color: var(--fm-text); margin: 0; }
+.settings-subtitle { font-size: .88rem; color: var(--fm-muted); margin: 4px 0 0; }
+.settings-loading { color: var(--fm-muted); padding: 24px 0; text-align: center; }
+.settings-page form { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.settings-section { background: var(--fm-card); border: 1px solid var(--fm-border); border-radius: 24px; padding: 24px; display: flex; flex-direction: column; gap: 18px; box-shadow: var(--fm-shadow-card); min-width: 0; }
+.settings-section .section-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding-bottom: 12px; border-bottom: 1px solid var(--fm-border); }
+.settings-section .section-icon { font-size: 1.3rem; }
+.settings-section .section-title { font-size: 1.05rem; font-weight: 700; color: var(--fm-text); margin: 0; }
+.settings-page .form-group { display: flex; flex-direction: column; gap: 8px; margin: 0; }
+.settings-page .form-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.settings-page .optional { font-size: .7rem; font-weight: 400; color: var(--fm-muted); text-transform: none; }
+.settings-actions .btn-save { width: 100%; padding: 14px; font: inherit; cursor: pointer; }
+.settings-page .alert { padding: 13px 16px; border-radius: 12px; font-size: .9rem; }
+.settings-page .alert-success { background: var(--fm-success-bg); color: var(--fm-success); }
+.settings-page .alert-error { background: var(--fm-error-bg); color: var(--fm-error); }
+
+@media (max-width: 640px) {
+    .settings-page .form-row { grid-template-columns: minmax(0, 1fr); }
+    .settings-section { padding: 22px 18px; border-radius: 20px; }
+}
+@media (max-width: 480px) {
+    .mrg-filters, .budget-period { grid-template-columns: minmax(0, 1fr); }
+}
