@@ -77,21 +77,21 @@
                     <div class="stmt-row-head"><i data-lucide="zap" class="stmt-icon"></i> Electricity</div>
                     <div class="stmt-row-body">
                         <div><span class="lbl">Units Used</span><span>@_data.ElectricityUsage.ToString("N2")</span></div>
-                        <div><span class="lbl">Estimated Cost</span><span>@_data.ElectricityCost.ToString("C")</span></div>
+                        <div><span class="lbl">Estimated Cost</span><span>@FormatAmount(_data.ElectricityCost)</span></div>
                     </div>
                 </div>
                 <div class="stmt-row-card">
                     <div class="stmt-row-head"><i data-lucide="flame" class="stmt-icon"></i> Gas</div>
                     <div class="stmt-row-body">
                         <div><span class="lbl">Units Used</span><span>@_data.GasUsage.ToString("N2")</span></div>
-                        <div><span class="lbl">Estimated Cost</span><span>@_data.GasCost.ToString("C")</span></div>
+                        <div><span class="lbl">Estimated Cost</span><span>@FormatAmount(_data.GasCost)</span></div>
                     </div>
                 </div>
                 <div class="stmt-row-card stmt-row-total">
                     <div class="stmt-row-head">Total</div>
                     <div class="stmt-row-body">
                         <div><span class="lbl">All fuels</span>
-                            <span><strong>@((_data.ElectricityCost + _data.GasCost).ToString("C"))</strong></span>
+                            <span><strong>@FormatAmount(_data.ElectricityCost + _data.GasCost)</strong></span>
                         </div>
                     </div>
                 </div>
@@ -161,13 +161,18 @@
         finally { _loading = false; }
     }
 
+    private string CurrencySymbol => string.IsNullOrWhiteSpace(_data?.CurrencySymbol)
+        ? "£" : _data.CurrencySymbol.Trim();
+
+    private string FormatAmount(decimal amount) => CurrencySymbol + amount.ToString("N2");
+
     private object BuildPayload() => new
     {
         account   = AuthState.CurrentUser?.FullName ?? "",
         email     = AuthState.CurrentUser?.Email ?? "",
         period    = _periodLabel,
         generated = DateTime.Now.ToString("dd MMM yyyy HH:mm"),
-        currency  = _data?.CurrencySymbol ?? "£",
+        currency  = CurrencySymbol,
         electricity = new
         {
             usage = _data?.ElectricityUsage.ToString("N2") ?? "0",
