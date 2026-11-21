@@ -112,6 +112,15 @@ try {
         throw 'The bundle manifest does not match the FuelMeter Play release configuration.'
     }
 
+    $resetFilters = @($app.SelectNodes('activity/intent-filter') | Where-Object {
+        $data = @($_.SelectNodes('data'))
+        $_.GetAttribute('autoVerify', $android) -eq 'true' -and
+        @($data | Where-Object { $_.GetAttribute('scheme', $android) -eq 'https' }).Count -gt 0 -and
+        @($data | Where-Object { $_.GetAttribute('host', $android) -eq 'fuelmeter.shrijiitservices.com' }).Count -gt 0 -and
+        @($data | Where-Object { $_.GetAttribute('path', $android) -eq '/reset-password' }).Count -gt 0
+    })
+    if ($resetFilters.Count -eq 0) { throw 'The signed bundle is missing its verified password-reset app link.' }
+
     if ($app.GetAttribute('extractNativeLibs', $android) -eq 'false') {
         $config = & $java -jar $bundletool.FullName dump config "--bundle=$bundle"
         if (-not ($config -match 'PAGE_ALIGNMENT_16K')) { throw 'Uncompressed native libraries require 16 KB APK ZIP alignment.' }

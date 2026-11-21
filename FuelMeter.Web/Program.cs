@@ -40,6 +40,7 @@ builder.Services.AddScoped<IAnomalyService,              HttpAnomalyService>();
 
 // ── Auth state (per Blazor Server circuit) ────────────────────────────────────
 builder.Services.AddScoped<AuthStateService>();
+builder.Services.AddScoped<PasswordResetLinks>();
 builder.Services.AddScoped<IRememberedSessionStore, RememberedSessionStore>();
 
 // ── Web has no OS alarm API — use a no-op scheduler ────────────

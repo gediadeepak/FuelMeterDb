@@ -2,6 +2,8 @@
 @using FuelMeter.Core.Services
 @inject AuthStateService AuthState
 @inject NavigationManager Navigation
+@inject PasswordResetLinks ResetLinks
+@implements IDisposable
 @if (_sessionLoaded)
 {
     <ErrorBoundary>
@@ -127,12 +129,28 @@ else
 @code {
     private bool _sessionLoaded;
 
+    protected override void OnInitialized() => ResetLinks.LinkReceived += HandleResetLink;
+
+    private void HandleResetLink() => _ = InvokeAsync(() =>
+    {
+        if (_sessionLoaded) NavigatePendingResetLink();
+    });
+
+    private void NavigatePendingResetLink()
+    {
+        if (ResetLinks.TakePendingRoute() is { } route)
+            Navigation.NavigateTo(route, replace: true);
+    }
+
+    public void Dispose() => ResetLinks.LinkReceived -= HandleResetLink;
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender) return;
 
         await AuthState.RestoreAsync();
         _sessionLoaded = true;
+        NavigatePendingResetLink();
         StateHasChanged();
     }
 }

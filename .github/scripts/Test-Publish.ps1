@@ -68,6 +68,16 @@ try {
         if ($homePage.Content -notmatch 'FuelMeter' -or $blazor.Headers['Content-Type'] -notmatch 'javascript') {
             throw 'The website did not serve the FuelMeter page and the Blazor script.'
         }
+        $association = Invoke-WebRequest "$url/.well-known/assetlinks.json" -MaximumRedirection 0 -TimeoutSec 10
+        $statements = $association.Content | ConvertFrom-Json
+        if ($association.Headers['Content-Type'] -notmatch 'application/json' -or
+            !($statements | Where-Object {
+                $_.target.package_name -eq 'com.fuelmeter.app' -and
+                'delegate_permission/common.handle_all_urls' -in $_.relation -and
+                $_.target.sha256_cert_fingerprints.Count -gt 0
+            })) {
+            throw 'The website did not serve its Android App Links association.'
+        }
     }
 
     Write-Output "$Application publish passed its smoke test."

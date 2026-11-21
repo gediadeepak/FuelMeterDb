@@ -1,0 +1,13 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.fuelmeter.app",
+      "sha256_cert_fingerprints": [
+        "D5:B3:A8:EF:73:63:DC:46:71:F6:17:F8:0C:2A:F9:39:53:DF:FA:3D:85:D7:51:27:76:DE:CC:D8:91:88:22:7D",
+        "99:8C:3D:CB:8D:2B:F1:59:01:A4:D8:83:F9:78:1A:A7:14:86:1A:78:86:80:CE:92:71:76:F7:A6:E8:B7:5C:B6"
+      ]
+    }
+  }
+]

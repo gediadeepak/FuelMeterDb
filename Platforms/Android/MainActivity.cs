@@ -1,5 +1,6 @@
 ﻿using Android.App;
 using Android.Content.PM;
+using Android.Content;
 using Android.OS;
 using Android.Views;
 using FuelMeter.Core.Services;
@@ -9,11 +10,14 @@ using FuelMeter.Services;
 namespace FuelMeter
 {
     [Activity(Theme = "@style/Maui.SplashTheme", MainLauncher = true, LaunchMode = LaunchMode.SingleTop, ConfigurationChanges = ConfigChanges.ScreenSize | ConfigChanges.Orientation | ConfigChanges.UiMode | ConfigChanges.ScreenLayout | ConfigChanges.SmallestScreenSize | ConfigChanges.Density)]
+    [IntentFilter([Android.Content.Intent.ActionView], Categories = [Android.Content.Intent.CategoryDefault, Android.Content.Intent.CategoryBrowsable],
+        DataScheme = "https", DataHost = PasswordResetLinks.Host, DataPath = PasswordResetLinks.ResetPath, AutoVerify = true)]
     public class MainActivity : MauiAppCompatActivity
     {
         protected override void OnCreate(Bundle? savedInstanceState)
         {
             base.OnCreate(null);
+            HandleResetLink(Intent);
 
             var services = IPlatformApplication.Current?.Services;
             if (services?.GetService<ISubscriptionPurchases>() is FuelMeter.Platforms.Android.GooglePlayPurchases billing)
@@ -46,6 +50,18 @@ namespace FuelMeter
                 // Keep navigation bar branded
                 Window.SetNavigationBarColor(Android.Graphics.Color.ParseColor("#0D47A1"));
             }
+        }
+
+        protected override void OnNewIntent(Intent? intent)
+        {
+            base.OnNewIntent(intent);
+            HandleResetLink(intent);
+        }
+
+        private static void HandleResetLink(Intent? intent)
+        {
+            if (intent?.Action == Android.Content.Intent.ActionView && Uri.TryCreate(intent.DataString, UriKind.Absolute, out var uri))
+                Microsoft.Maui.Controls.Application.Current?.SendOnAppLinkRequestReceived(uri);
         }
 
         protected override void OnDestroy()

@@ -79,6 +79,7 @@ namespace FuelMeter
             builder.Services.AddSingleton<IExportImportService,         HttpExportImportService>();
 
             builder.Services.AddSingleton<IRememberedSessionStore, RememberedSessionStore>();
+            builder.Services.AddSingleton<PasswordResetLinks>();
 
             // ── Auth state + attach the API client ─────────────────
             builder.Services.AddSingleton<AuthStateService>(sp =>

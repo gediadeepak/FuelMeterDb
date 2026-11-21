@@ -240,6 +240,9 @@ window.fuelMeterStatement = (function () {
 
     return { downloadPdf, print };
 })();
+window.fuelMeterAppLinks = {
+    isAndroidBrowser: () => location.hostname === 'fuelmeter.shrijiitservices.com' && /Android/i.test(navigator.userAgent)
+};
 window.fuelMeterSubscriptions = {
     formatDate: value => new Intl.DateTimeFormat(undefined, {
         dateStyle: "medium", timeStyle: "short"

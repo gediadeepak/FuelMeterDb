@@ -2,9 +2,18 @@
 {
     public partial class App : Application
     {
-        public App()
+        private readonly FuelMeter.Core.Services.PasswordResetLinks _resetLinks;
+
+        public App(FuelMeter.Core.Services.PasswordResetLinks resetLinks)
         {
+            _resetLinks = resetLinks;
             InitializeComponent();
+        }
+
+        protected override void OnAppLinkRequestReceived(Uri uri)
+        {
+            base.OnAppLinkRequestReceived(uri);
+            _resetLinks.Receive(uri);
         }
 
         protected override Window CreateWindow(IActivationState? activationState)
