@@ -69,6 +69,7 @@
 
 /* ── Alerts ── */
 .auth-alert {
+    overflow-wrap: anywhere;
     border-radius: 12px;
     padding: 12px 16px;
     font-size: 14px;
@@ -190,8 +191,8 @@
 .btn-link {
     background: none;
     border: none;
-    color: var(--fm-blue-bright);
-    font-weight: 600;
+    color: var(--fm-blue);
+    font-weight: 700;
     font-size: 14px;
     cursor: pointer;
     padding: 0;
@@ -199,7 +200,7 @@
 }
 
 .btn-link:hover {
-    color: var(--fm-blue-dark);
+    color: var(--fm-orange);
     text-decoration: underline;
 }
 

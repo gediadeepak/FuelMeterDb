@@ -38,10 +38,8 @@ public class HttpAuthService(IApiClientService api) : IAuthService
             return await api.PostAsync<ForgotPasswordRequest, AuthResult>("api/auth/forgot-password", request)
                    ?? Fail("No response from server.");
         }
-        catch (HttpRequestException ex)
-        {
-            return Fail(ex.Message);
-        }
+        catch (HttpRequestException) { return Fail("We couldn't complete your password request. Please try again shortly or contact support@shrijiitservices.com."); }
+        catch (OperationCanceledException) { return Fail("The password request timed out. Please check your connection and try again."); }
     }
 
     public async Task<AuthResult> ResetPasswordAsync(string token, string newPassword)
@@ -52,10 +50,8 @@ public class HttpAuthService(IApiClientService api) : IAuthService
             return await api.PostAsync<ResetPasswordRequest, AuthResult>("api/auth/reset-password", body)
                    ?? Fail("No response from server.");
         }
-        catch (HttpRequestException ex)
-        {
-            return Fail(ex.Message);
-        }
+        catch (HttpRequestException) { return Fail("We couldn't complete your password request. Please try again shortly or contact support@shrijiitservices.com."); }
+        catch (OperationCanceledException) { return Fail("The password request timed out. Please check your connection and try again."); }
     }
 
     public async Task<AuthResult> DeleteAccountAsync(DeleteAccountRequest request)

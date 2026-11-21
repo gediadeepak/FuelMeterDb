@@ -39,6 +39,8 @@ The migration grants complimentary access to the existing active account whose e
 
 The migration never creates a user or grants access during registration based on an unverified email. Verify the grant after deployment. Account deletion removes a complimentary setting belonging to that account.
 
+For an explicitly approved complimentary account, set `Subscription.UnlimitedScansUser.<user ID>` to `true` alongside its complimentary grant to remove daily, monthly and retry quotas. This flag only works with an active complimentary grant. Platform availability, per-minute API rate limiting and scan idempotency still apply. It is read from the database on each request and removed when the account is deleted. No schema migration is required.
+
 ## Google Play activation
 
 1. Create and activate the monthly subscription and base plan in Play Console, using the IDs above or updating the corresponding database settings. Set the UK consumer price to £1.99 including applicable tax and restrict subscription availability to the UK. The app requires a regular GBP monthly plan and displays the price returned by Google.

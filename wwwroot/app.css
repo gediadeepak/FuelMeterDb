@@ -60,8 +60,22 @@ img {
     backface-visibility: hidden;
 }
 
-a, .btn-link {
-    color: var(--fm-blue-bright);
+a:not(.btn):not(.nav-link), .btn-link {
+    color: var(--fm-blue);
+    font-weight: 700;
+    text-decoration: none;
+    text-underline-offset: .2em;
+}
+
+a:not(.btn):not(.nav-link):hover, .btn-link:hover {
+    color: var(--fm-orange);
+    text-decoration: underline;
+}
+
+a:focus-visible, .btn-link:focus-visible {
+    outline: 2px solid var(--fm-blue-bright);
+    outline-offset: 3px;
+    border-radius: 3px;
 }
 
 .btn-primary {

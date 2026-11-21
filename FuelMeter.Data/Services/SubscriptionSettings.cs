@@ -46,6 +46,10 @@ public sealed class SubscriptionPolicy(IReadOnlyDictionary<string, string> value
             end.UtcDateTime > DateTime.UtcNow ? end.UtcDateTime : null;
     }
 
+    public bool HasUnlimitedScans(int userId) => ComplimentaryUntil(userId) is not null &&
+        values.TryGetValue("Subscription.UnlimitedScansUser." + userId, out var value) &&
+        bool.TryParse(value, out var enabled) && enabled;
+
     public static bool IsActive(AccountSubscription subscription, DateTime now) =>
         subscription.PeriodEndUtc > now && subscription.PeriodStartUtc <= now &&
         subscription.State is "SUBSCRIPTION_STATE_ACTIVE" or "SUBSCRIPTION_STATE_IN_GRACE_PERIOD" or "SUBSCRIPTION_STATE_CANCELED";

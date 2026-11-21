@@ -21,8 +21,15 @@
             <p>@_status.Message</p>
             @if (_status.HasSubscription || _status.HasTrial)
             {
-                <p><strong>@_status.MonthlyRemaining of @_status.MonthlyAllowance</strong> scans remaining in this period.</p>
-                <p>@_status.DailyRemaining of @_status.DailyAllowance scans remaining today. Daily allowances reset at midnight UK time.</p>
+                @if (_status.UnlimitedScans)
+                {
+                    <p><strong>Unlimited AI scans</strong> with your complimentary access.</p>
+                }
+                else
+                {
+                    <p><strong>@_status.MonthlyRemaining of @_status.MonthlyAllowance</strong> scans remaining in this period.</p>
+                    <p>@_status.DailyRemaining of @_status.DailyAllowance scans remaining today. Daily allowances reset at midnight UK time.</p>
+                }
                 @if (_status.AccessEndsAtUtc is not null)
                 {
                     <p>Access ends <time datetime="@_status.AccessEndsAtUtc?.ToString("O")">@(_localEnd ?? _status.AccessEndsAtUtc?.ToString("u"))</time>.</p>

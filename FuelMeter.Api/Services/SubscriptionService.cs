@@ -116,6 +116,7 @@ public sealed class SubscriptionService(
     {
         var (subscription, trial) = await AccessAsync(userId, cancellationToken);
         var complimentaryEnd = policy.ComplimentaryUntil(userId);
+        var unlimited = policy.HasUnlimitedScans(userId);
         var hasAccess = subscription is not null || trial is not null || complimentaryEnd is not null;
         var period = PeriodKey(userId, policy, subscription, trial);
         var day = policy.DayKey(DateTime.UtcNow);
@@ -123,15 +124,15 @@ public sealed class SubscriptionService(
         var requests = db.AiScanRequests.AsNoTracking().Where(x => x.UserId == userId);
         var counted = requests.Where(x => x.Status == "Succeeded" ||
             x.Status == "Reserved" && x.ReservedAtUtc > leaseCutoff);
-        var monthlyLimit = subscription is not null || complimentaryEnd is not null || trial is null
+        var monthlyLimit = unlimited ? int.MaxValue : subscription is not null || complimentaryEnd is not null || trial is null
             ? policy.Number("Scans.Monthly", 1) : policy.Number("Trial.Scans", 0);
-        var dailyLimit = policy.Number("Scans.Daily", 1);
+        var dailyLimit = unlimited ? int.MaxValue : policy.Number("Scans.Daily", 1);
         var monthlyUsed = await counted.CountAsync(x => x.PeriodKey == period, cancellationToken);
         var dailyUsed = await counted.CountAsync(x => x.DayKey == day, cancellationToken);
         var attemptsDaily = await requests.CountAsync(x => x.DayKey == day, cancellationToken);
         var attemptsMonthly = await requests.CountAsync(x => x.PeriodKey == period, cancellationToken);
-        var attemptsAvailable = attemptsDaily < policy.Number("Scans.AttemptsDaily", 1) &&
-            attemptsMonthly < policy.Number("Scans.AttemptsMonthly", 1);
+        var attemptsAvailable = unlimited || (attemptsDaily < policy.Number("Scans.AttemptsDaily", 1) &&
+            attemptsMonthly < policy.Number("Scans.AttemptsMonthly", 1));
         var userEmail = await db.Users.Where(x => x.Id == userId).Select(x => x.Email).SingleAsync(cancellationToken);
         var identity = security.TrialIdentity(userEmail);
         var priorTrial = await db.AccountTrials.AsNoTracking().SingleOrDefaultAsync(x => x.IdentityHash == identity, cancellationToken);
@@ -140,20 +141,20 @@ public sealed class SubscriptionService(
             ? new[] { "Android", "Web", "Windows", "iOS" }.Any(policy.CanUsePremium)
             : policy.CanUsePremium(platform);
         var purchases = platform == "Android" && policy.Enabled("Android.PurchasesEnabled") && google.IsConfigured;
-        var canScan = platformEnabled && hasAccess && monthlyUsed < monthlyLimit && dailyUsed < dailyLimit && attemptsAvailable;
+        var canScan = platformEnabled && hasAccess && (unlimited || monthlyUsed < monthlyLimit && dailyUsed < dailyLimit && attemptsAvailable);
         var message = !platformEnabled ? "Subscriptions are unavailable on this platform." :
             !hasAccess ? "A subscription or an eligible trial is required for AI scanning." :
             !attemptsAvailable ? "The scan retry allowance has been reached. Try again after the allowance resets." :
             monthlyUsed >= monthlyLimit ? "Your scan allowance has been used for this period." :
             dailyUsed >= dailyLimit ? "Your daily scan allowance has been used. It resets at midnight UK time." :
-            "AI scanning is available.";
+            unlimited ? "Complimentary access with unlimited AI scans is available." : "AI scanning is available.";
         return new(platform, platformEnabled, purchases, subscription is not null || complimentaryEnd is not null, trial is not null && subscription is null && complimentaryEnd is null,
             platformEnabled && !hasAccess && eligible, canScan,
             complimentaryEnd == DateTime.MaxValue && subscription is null ? null : subscription?.PeriodEndUtc ?? complimentaryEnd ?? trial?.EndsAtUtc,
             monthlyLimit, Math.Max(0, monthlyLimit - monthlyUsed), dailyLimit, Math.Max(0, dailyLimit - dailyUsed),
             purchases ? policy.Text("Google.ProductId") : null, purchases ? policy.Text("Google.BasePlanId") : null,
             purchases ? security.AccountId(userId) : null, message,
-            complimentaryEnd is not null && subscription is null, policy.Number("Scans.Monthly", 1));
+            complimentaryEnd is not null && subscription is null, policy.Number("Scans.Monthly", 1), unlimited);
     }
 
     public async Task StartTrialAsync(int userId, CancellationToken cancellationToken)

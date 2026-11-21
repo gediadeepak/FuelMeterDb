@@ -19,6 +19,7 @@ public sealed class SubscriptionTests : IAsyncLifetime
     private readonly IConfiguration _configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
     {
         ["SubscriptionSecurity:IdentityKey"] = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)),
+        ["AppSettings:AppBaseUrl"] = "https://fuelmeter.example.test",
         ["SubscriptionSecurity:PurchaseTokenKey"] = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))
     }).Build();
 
@@ -240,6 +241,93 @@ public sealed class SubscriptionTests : IAsyncLifetime
         Assert.False(status.CanScan);
         await Assert.ThrowsAsync<ScanAccessException>(() => Service(db).ReserveAsync(user, Request(), default));
         Assert.Empty(await db.AiScanRequests.Where(x => x.UserId == user).ToListAsync());
+    }
+
+    [Fact]
+    public async Task UnlimitedComplimentaryAccessBypassesDailyMonthlyAndRetryLimits()
+    {
+        var userId = await UserAsync(complimentary: true);
+        await using var db = Database();
+        db.ApplicationSettings.Add(new ApplicationSetting
+        {
+            Key = "Subscription.UnlimitedScansUser." + userId, Value = "true", UpdatedAtUtc = DateTime.UtcNow
+        });
+        var policy = await new SubscriptionSettings(db).GetAsync();
+        for (var i = 0; i < 65; i++)
+            db.AiScanRequests.Add(new AiScanRequest
+            {
+                UserId = userId, IdempotencyKey = Guid.NewGuid(), ImageHash = new string('A', 64),
+                DayKey = policy.DayKey(DateTime.UtcNow),
+                PeriodKey = "complimentary:" + userId + ":" + policy.DayKey(DateTime.UtcNow)[..7],
+                Status = "Succeeded", ReservedAtUtc = DateTime.UtcNow, CompletedAtUtc = DateTime.UtcNow
+            });
+        await db.SaveChangesAsync();
+        var status = await Service(db).GetStatusAsync(userId, "Android", default);
+        Assert.True(status.UnlimitedScans);
+        Assert.True(status.CanScan);
+        Assert.NotNull((await Service(db).ReserveAsync(userId, Request(), default)).RequestId);
+        Assert.False((await Service(db).GetStatusAsync(userId, "iOS", default)).CanScan);
+    }
+
+    [Fact]
+    public async Task PasswordResetDeliversAWebLinkAndRejectsTokenReuse()
+    {
+        var userId = await UserAsync();
+        await using var db = Database();
+        var user = await db.Users.SingleAsync(x => x.Id == userId);
+        var email = new ResetEmail();
+        var auth = new AuthService(db, email, _configuration, NullLogger<AuthService>.Instance);
+
+        Assert.True((await auth.ForgotPasswordAsync(new() { Email = user.Email.ToUpperInvariant() })).Success);
+        Assert.StartsWith("https://fuelmeter.example.test/reset-password?token=", email.Link);
+        var token = await db.PasswordResetTokens.SingleAsync(x => x.UserId == userId);
+        Assert.EndsWith(token.Token, email.Link);
+        Assert.True((await auth.ResetPasswordAsync(token.Token, "changed-password")).Success);
+        Assert.False((await auth.ResetPasswordAsync(token.Token, "another-password")).Success);
+        Assert.True((await auth.LoginAsync(new() { Email = user.Email, Password = "changed-password" })).Success);
+    }
+
+    [Fact]
+    public async Task FailedEmailDoesNotRevokeAnEarlierResetLinkOrClaimDelivery()
+    {
+        var userId = await UserAsync();
+        await using var db = Database();
+        var user = await db.Users.SingleAsync(x => x.Id == userId);
+        db.PasswordResetTokens.Add(new PasswordResetToken
+        {
+            UserId = userId, Token = "earlier-link", ExpiresAt = DateTime.UtcNow.AddHours(1)
+        });
+        await db.SaveChangesAsync();
+        var auth = new AuthService(db, new UnusedEmail(), _configuration, NullLogger<AuthService>.Instance);
+
+        var result = await auth.ForgotPasswordAsync(new() { Email = user.Email });
+        Assert.False(result.Success);
+        Assert.Contains("try again", result.Message);
+        var remaining = await db.PasswordResetTokens.Where(x => x.UserId == userId).ToListAsync();
+        Assert.Single(remaining);
+        Assert.False(remaining[0].IsUsed);
+        Assert.True((await auth.ResetPasswordAsync("earlier-link", "changed-password")).Success);
+    }
+
+    [Fact]
+    public async Task ResetDatabaseFailureReturnsAFriendlyFailure()
+    {
+        var db = Database();
+        await db.DisposeAsync();
+        var auth = new AuthService(db, new UnusedEmail(), _configuration, NullLogger<AuthService>.Instance);
+        var result = await auth.ForgotPasswordAsync(new() { Email = "test@example.test" });
+        Assert.False(result.Success);
+        Assert.DoesNotContain("Exception", result.Message);
+    }
+
+    private sealed class ResetEmail : IEmailService
+    {
+        public string Link { get; private set; } = string.Empty;
+        public Task SendPasswordResetEmailAsync(string toEmail, string fullName, string resetLink)
+        {
+            Link = resetLink;
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class UnusedEmail : IEmailService

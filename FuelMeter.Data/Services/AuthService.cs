@@ -74,6 +74,27 @@ public class AuthService(
     // ── Forgot Password ──────────────────────────────────────────
     public async Task<AuthResult> ForgotPasswordAsync(ForgotPasswordRequest request)
     {
+        try
+        {
+            return await SendPasswordResetAsync(request);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Password reset could not be completed.");
+            return Fail("We couldn't send a reset link right now. Please try again shortly or contact support@shrijiitservices.com.");
+        }
+    }
+
+    private async Task<AuthResult> SendPasswordResetAsync(ForgotPasswordRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email))
+            return Fail("Please enter your email address.");
+
+        var baseUrl = configuration["AppSettings:AppBaseUrl"]?.TrimEnd('/');
+        if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var appUri) ||
+            (appUri.Scheme != Uri.UriSchemeHttps && appUri.Scheme != Uri.UriSchemeHttp))
+            throw new InvalidOperationException("AppSettings:AppBaseUrl must be an absolute web URL.");
+
         var emailLower = request.Email.Trim().ToLowerInvariant();
         var user = await db.Users.FirstOrDefaultAsync(u => u.Email == emailLower && u.IsActive);
 
@@ -86,39 +107,37 @@ public class AuthService(
             .Where(t => t.UserId == user.Id && !t.IsUsed && t.ExpiresAt > DateTime.UtcNow)
             .ToListAsync();
 
-        foreach (var t in activeTokens)
-            t.IsUsed = true;
-
-        // Create new token (SHA-256 GUID-based, URL-safe)
-        var rawToken = Convert.ToBase64String(Guid.NewGuid().ToByteArray())
+        // Cryptographically random and URL-safe; never expose the token in logs.
+        var rawToken = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32))
                               .Replace("+", "-").Replace("/", "_").TrimEnd('=');
 
-        db.PasswordResetTokens.Add(new PasswordResetToken
+        var resetToken = new PasswordResetToken
         {
             UserId = user.Id,
             Token = rawToken,
             ExpiresAt = DateTime.UtcNow.AddHours(24),
             CreatedAt = DateTime.UtcNow
-        });
+        };
+        db.PasswordResetTokens.Add(resetToken);
 
         await db.SaveChangesAsync();
 
         try
         {
-            var baseUrl = configuration["AppSettings:AppBaseUrl"]?.TrimEnd('/');
-            if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var appUri) ||
-                (appUri.Scheme != Uri.UriSchemeHttps && appUri.Scheme != Uri.UriSchemeHttp))
-            {
-                throw new InvalidOperationException("AppSettings:AppBaseUrl must be an absolute web URL.");
-            }
-
             var resetLink = $"{baseUrl}/reset-password?token={rawToken}";
             await emailService.SendPasswordResetEmailAsync(user.Email, user.FullName, resetLink);
         }
-        catch (Exception ex)
+        catch
         {
-            logger.LogError(ex, "Password reset email delivery failed.");
+            // A delivery failure must not revoke an earlier working reset link.
+            db.PasswordResetTokens.Remove(resetToken);
+            await db.SaveChangesAsync();
+            throw;
         }
+
+        foreach (var t in activeTokens)
+            t.IsUsed = true;
+        await db.SaveChangesAsync();
 
         return Ok("If that email is registered, a reset link has been sent.");
     }
@@ -159,6 +178,8 @@ public class AuthService(
             await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
             await SubscriptionAccountLock.AcquireAsync(db, userId, cancellationToken);
             await db.ApplicationSettings.Where(x => x.Key == "Subscription.ComplimentaryUser." + userId)
+                .ExecuteDeleteAsync(cancellationToken);
+            await db.ApplicationSettings.Where(x => x.Key == "Subscription.UnlimitedScansUser." + userId)
                 .ExecuteDeleteAsync(cancellationToken);
             var trial = await db.AccountTrials.SingleOrDefaultAsync(x => x.UserId == userId, cancellationToken);
             if (trial is not null)

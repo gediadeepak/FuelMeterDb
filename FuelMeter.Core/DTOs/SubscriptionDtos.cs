@@ -8,7 +8,7 @@ public sealed record SubscriptionStatus(
     DateTime? AccessEndsAtUtc, int MonthlyAllowance, int MonthlyRemaining,
     int DailyAllowance, int DailyRemaining, string? ProductId, string? BasePlanId,
     string? PurchaseAccountId, string Message,
-    bool IsComplimentary, int PaidMonthlyAllowance);
+    bool IsComplimentary, int PaidMonthlyAllowance, bool UnlimitedScans = false);
 
 public sealed class GooglePurchaseRequest
 {
