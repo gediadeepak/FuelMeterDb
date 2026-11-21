@@ -270,6 +270,37 @@ public sealed class SubscriptionTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task LegacyMissingTokenDefaultIsRepairedBeforePasswordReset()
+    {
+        var userId = await UserAsync();
+        await using var db = Database();
+        var user = await db.Users.SingleAsync(x => x.Id == userId);
+        await db.Database.ExecuteSqlRawAsync("""
+            DECLARE @constraint sysname = (SELECT OBJECT_NAME(default_object_id)
+                FROM sys.columns WHERE object_id = OBJECT_ID(N'PasswordResetTokens') AND name = N'IsUsed');
+            IF @constraint IS NOT NULL
+            BEGIN
+                DECLARE @sql nvarchar(max) = N'ALTER TABLE [PasswordResetTokens] DROP CONSTRAINT ' + QUOTENAME(@constraint);
+                EXEC sys.sp_executesql @sql;
+            END;
+            DELETE FROM [__EFMigrationsHistory]
+                WHERE MigrationId = N'20261121140000_RestorePasswordResetTokenDefault';
+            """);
+        var email = new ResetEmail();
+        var auth = new AuthService(db, email, _configuration, NullLogger<AuthService>.Instance);
+        Assert.False((await auth.ForgotPasswordAsync(new() { Email = user.Email })).Success);
+        Assert.Equal(string.Empty, email.Link);
+
+        db.ChangeTracker.Clear();
+        await db.Database.MigrateAsync();
+        Assert.True((await auth.ForgotPasswordAsync(new() { Email = user.Email })).Success);
+        Assert.NotEmpty(email.Link);
+        var token = await db.PasswordResetTokens.SingleAsync(x => x.UserId == userId);
+        Assert.False(token.IsUsed);
+        Assert.True((await auth.ResetPasswordAsync(token.Token, "changed-password")).Success);
+    }
+
+    [Fact]
     public async Task PasswordResetDeliversAWebLinkAndRejectsTokenReuse()
     {
         var userId = await UserAsync();
